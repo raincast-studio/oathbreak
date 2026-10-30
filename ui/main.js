@@ -3,7 +3,7 @@
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
-import { h, $, icon, num, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar } from './kit.js';
+import { h, $, icon, num, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf } from './kit.js';
 import { errText } from './errors.js';
 import { showOnboarding, resetTutorial } from './onboarding.js';
 import { showReport } from './report.js';
@@ -110,7 +110,8 @@ function drawTop(energyOnly = false) {
   tickEnergy();
   if (energyOnly) return;
   $('#lvl-num').textContent = p.level;
-  if ($('#me-av').dataset.f !== p.faction) { $('#me-av').dataset.f = p.faction; $('#me-av').replaceChildren(avatar(p.faction, p.name).firstChild); }
+  const avKey = `${p.faction}:${stageOf(p.level)}`;
+  if ($('#me-av').dataset.k !== avKey) { $('#me-av').dataset.k = avKey; $('#me-av').dataset.f = p.faction; $('#me-av').replaceChildren(avatar(p.faction, p.name, '', p.level).firstChild); }
   $('#who').textContent = p.name;
   $('#me-fac').textContent = p.faction === 'hero' ? 'Héroe' : 'Villano';
   $('#xp-txt').textContent = `${num(p.xp)}/${num(p.xpNeed)} XP`;

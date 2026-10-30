@@ -20,7 +20,7 @@ function stage({ S, go }) {
   const p = S.player;
   return h('section.stage', { 'aria-label': 'Tu personaje' },
     h('div.stage-glow', { 'aria-hidden': 'true' }),
-    sprite(p.faction, '.stage-sprite'),
+    sprite(p.faction, '.stage-sprite', p.level),
     h('div.stage-hp', h('div.hp-top', h('span.hp-l', 'VIDA'), h('span.tnum', `${num(p.maxHp)}/${num(p.maxHp)}`)), h('div.hp-track', h('span'))),
     h('div.fabs.left', h('button.fab', { type: 'button', onclick: () => go('personaje', { intent: 'equipo' }) }, icon('equipo', 22), 'EQUIPO')),
     h('div.fabs.right', h('button.fab', { type: 'button', onclick: () => go('guarida', { intent: 'tienda' }) }, icon('tienda', 22), 'TIENDA')));
@@ -77,7 +77,7 @@ function lastAttack(ctx) {
   const target = rv.ok && rv.list.find((x) => x.id === r.attacker.id);
   const m = Math.floor((S.now - r.ts) / 60_000);
   return h('div.attacked',
-    avatar(r.attacker.faction, r.attacker.name),
+    avatar(r.attacker.faction, r.attacker.name, '', r.attacker.lvl),
     h('div.g-info',
       h('span', h('strong', r.attacker.name), won ? ' te atacó y perdió.' : ' te atacó y ganó.'),
       h('span.muted', h('span.' + (won ? 'plus' : 'minus'), won ? `+${num(r.loot.bounty)} oro` : `−${num(r.loot.gold)} oro`), ` · ${m < 60 ? `hace ${Math.max(1, m)} min` : `hace ${Math.floor(m / 60)} h`}`)),

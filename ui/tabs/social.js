@@ -78,7 +78,7 @@ function visitView(ctx) {
   const done = list.filter((x) => x.visitedToday);
 
   const row = (x) => h(`li.person${x.visitedToday ? '.visited' : ''}`,
-    avatar(x.faction, x.name),
+    avatar(x.faction, x.name, '', x.level),
     h('div.t-info',
       h('strong', x.name),
       h('span.t-meta', h('span.muted', `Nv ${x.level} · Prestigio ${num(x.prestige)}`)),
@@ -107,7 +107,7 @@ function guestbookCard(ctx) {
   return h('section.card',
     h('div.sec-head', h('h2.display', 'Libro de visitas'), h('span.muted', `Propinas hoy ${lr.visits.hostTipsToday}/${lr.visits.hostTipCap}`)),
     gb.length ? h('ul.people', gb.slice(0, 10).map((g) => h('li.person',
-      avatar(g.faction, g.name),
+      avatar(g.faction, g.name, '', g.level),
       h('div.t-info', h('strong', g.name), h('span.muted', `${ago(ctx.S.now - g.ts)}${g.applause ? ' · aplaudió' : ''}${g.tip ? ` · +${g.tip} oro` : ''}`)),
       h('button.btn.ghost.small', { type: 'button', onclick: () => doVisit(ctx, g.id) }, 'Devolver'))))
       : h('p.empty', 'Nadie te visitó todavía. Decorá tu guarida para subir en el escaparate.'));
@@ -121,14 +121,14 @@ function friendsView(ctx) {
   const reqCard = fr.requests.length ? h('section.card.requests',
     h('div.sec-head', h('h2.display', 'Solicitudes'), h('span.pill.violet', `${fr.requests.length}`)),
     h('ul.people', fr.requests.map((r) => h('li.person',
-      avatar(r.faction, r.name),
+      avatar(r.faction, r.name, '', r.level),
       h('div.t-info', h('strong', r.name), h('span.muted', `${FAC[r.faction]} · Nv ${r.level} · ${ago(ctx.S.now - r.ts)}`)),
       h('div.row.tight',
         h('button.btn.ghost.small', { type: 'button', 'aria-label': `Rechazar a ${r.name}`, onclick: (e) => ctx.act(e.currentTarget, (g) => g.rejectFriend(r.id), () => 'Solicitud rechazada') }, 'No'),
         h('button.btn.gold.small', { type: 'button', 'aria-label': `Aceptar a ${r.name}`, onclick: (e) => ctx.act(e.currentTarget, (g) => g.acceptFriend(r.id), () => `${r.name} ahora es tu amigo`) }, 'Aceptar')))))) : null;
   const sentCard = fr.sent.length ? h('details.done-list', h('summary', `Solicitudes enviadas (${fr.sent.length})`),
     h('ul.people', fr.sent.map((r) => h('li.person',
-      avatar(r.faction, r.name),
+      avatar(r.faction, r.name, '', r.level),
       h('div.t-info', h('strong', r.name), h('span.muted', `Esperando respuesta · ${ago(ctx.S.now - r.ts)}`)),
       h('button.btn.ghost.small', { type: 'button', onclick: (e) => ctx.act(e.currentTarget, (g) => g.cancelRequest(r.id), () => 'Solicitud cancelada') }, 'Cancelar'))))) : null;
   return h('div.stack',
@@ -141,7 +141,7 @@ function friendsView(ctx) {
       h('div.sec-head', h('h2.display', 'Amigos'), h('span.muted.tnum', `${fr.list.length}/${fr.max}`)),
       h('p.muted.hint', `Regalos de hoy: ${fr.sentToday}/${fr.cap}. Regalar es gratis: es un objeto chico que crea el sistema, y vos ganás renombre.`),
       fr.list.length ? h('ul.people', fr.list.map((f) => h('li.person',
-        avatar(f.faction, f.name),
+        avatar(f.faction, f.name, '', f.level),
         h('div.t-info', h('strong', f.name), h('span.muted', `${FAC[f.faction]} · Nv ${f.level}`)),
         h('div.row.tight',
           h('button.btn.ghost.small', { type: 'button', 'aria-label': `Visitar a ${f.name}`, onclick: () => doVisit(ctx, f.id) }, 'Visitar'),
@@ -166,7 +166,7 @@ function showcaseView(ctx) {
 
   const row = (x, i) => h(`li.rank${x.id === p.id ? '.me' : ''}${i < winnersTop ? '.podium' : ''}`,
     h('span.pos.tnum', `${i + 1}`),
-    avatar(x.faction, x.name),
+    avatar(x.faction, x.name, '', x.level),
     h('div.t-info', h('strong', x.id === p.id ? `${x.name} (vos)` : x.name), h('span.muted.tnum', `Prestigio ${num(x.prestige)} · ${x.applause} aplausos`)),
     h('span.score.tnum', num(x.score)),
     x.id === p.id ? h('span.spacer') : h('button.icon-btn', { type: 'button', 'aria-label': `Visitar a ${x.name}`, onclick: () => doVisit(ctx, x.id) }, icon('guarida', 18)));

@@ -586,6 +586,7 @@ button.qcard:active { transform: scale(.98); }
 .avatar[data-f="villain"] { background: #3A1428; }
 .face, .me-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 0%; transform: scale(1.12); transform-origin: 50% 20%; }
 .me-av { overflow: hidden; }
+.face.cut, .me-av img.cut { object-position: 50% 50%; transform: none; } /* recorte de cara ya encuadrado por etapa */
 .stage-sprite { position: absolute; left: 50%; bottom: 34px; height: 250px; transform: translateX(-50%); animation: idle2 2.6s ease-in-out infinite; }
 @keyframes idle2 { 50% { transform: translateX(-50%) translateY(-4px); } }
 .side-sprite { height: 150px; }

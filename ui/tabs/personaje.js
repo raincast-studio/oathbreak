@@ -21,7 +21,7 @@ export function render(ctx) {
   const subs = [['atributos', 'Atributos'], ['equipo', 'Equipo'], ['banco', 'Banco'], ['temporada', 'Temporada'], ['cuenta', 'Cuenta']];
   return h('section.stack',
     h('div.hero-card',
-      avatar(p.faction, p.name, '.big'),
+      avatar(p.faction, p.name, '.big', p.level),
       h('div.t-info',
         h('h1.display', p.name),
         h('span.muted', `${FAC[p.faction]} · Nivel ${p.level} · ${num(p.maxHp)} de vida`),

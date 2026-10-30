@@ -10,7 +10,7 @@ const BOUNTY_NO = {
   atacante_sin_victorias: 'Sin recompensa: el atacante casi nunca gana.',
 };
 
-const fighter = (f, side) => h(`div.fighter.${side}`, { 'data-f': f.faction }, sprite(f.faction));
+const fighter = (f, side) => h(`div.fighter.${side}`, { 'data-f': f.faction }, sprite(f.faction, '', f.lvl));
 
 // Capa propia a pantalla completa: no se cierra arrastrando ni tocando afuera (la espera es fija).
 function layer() {

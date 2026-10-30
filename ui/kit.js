@@ -182,10 +182,19 @@ addEventListener('keydown', (e) => {
   }
 });
 
-/* ---------- Personajes (placeholders del dueño hasta tener los sprites finales) ---------- */
-export const SPRITE = { hero: 'ui/img/hero.webp', villain: 'ui/img/villain.webp' };
+/* ---------- Personajes: evolución visual por nivel (30/10) ---------- */
+// El nivel define la etapa. Cortes: 1·5·10·15·25·32·40·60·80·100. Solo interfaz: la fachada no se toca.
+export const STAGE_LEVELS = [1, 5, 10, 15, 25, 32, 40, 60, 80, 100];
+export const stageOf = (level = 1) => { let s = 1; STAGE_LEVELS.forEach((l, i) => { if (level >= l) s = i + 1; }); return s; };
+// Bandos con las 10 etapas entregadas. El Villano usa su marcador hasta que lleguen sus sprites.
+const STAGED = { hero: true, villain: false };
+const SPRITE = { hero: 'ui/img/hero.webp', villain: 'ui/img/villain.webp' };
+const fac = (f) => (f === 'villain' ? 'villain' : 'hero');
+const pad = (n) => String(n).padStart(2, '0');
+export const spriteSrc = (faction, level) => { const f = fac(faction); return STAGED[f] ? `ui/img/${f}/s${pad(stageOf(level))}.webp` : SPRITE[f]; };
+const faceSrc = (faction, level) => { const f = fac(faction); return STAGED[f] ? `ui/img/${f}/s${pad(stageOf(level))}_av.webp` : SPRITE[f]; };
 // Cuerpo entero.
-export const sprite = (faction, cls = '') => h(`img.sprite${cls}`, { src: SPRITE[faction] ?? SPRITE.hero, alt: '', draggable: false, decoding: 'async' });
-// Retrato redondo (cabeza): el mismo sprite recortado. La inicial queda como etiqueta accesible.
-export const avatar = (faction, name, cls = '') => h(`span.avatar${cls}`, { 'data-f': faction, 'aria-hidden': 'true', title: name },
-  h('img.face', { src: SPRITE[faction] ?? SPRITE.hero, alt: '', draggable: false, decoding: 'async' }));
+export const sprite = (faction, cls = '', level = 1) => h(`img.sprite${cls}`, { src: spriteSrc(faction, level), alt: '', draggable: false, decoding: 'async', 'data-stage': stageOf(level) });
+// Retrato redondo (cabeza). Con etapas usa el recorte de la cara; si no, el sprite recortado por CSS.
+export const avatar = (faction, name, cls = '', level = 1) => h(`span.avatar${cls}`, { 'data-f': faction, 'aria-hidden': 'true', title: name },
+  h(`img.face${STAGED[fac(faction)] ? '.cut' : ''}`, { src: faceSrc(faction, level), alt: '', draggable: false, decoding: 'async' }));

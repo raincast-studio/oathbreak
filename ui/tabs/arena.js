@@ -24,7 +24,7 @@ export function render(ctx) {
     const [chance, cls] = CHANCE[t.band] ?? ['Fuera de rango', 'xlo'];
     const blocked = !!t.block || noEnergy;
     return h(`li.riv${t.block ? '.blocked' : ''}`,
-      avatar(foeF, t.name, '.lg'),
+      avatar(foeF, t.name, '.lg', t.level),
       h('div.riv-info',
         h('strong.display', t.name),
         h('span.muted', `Nv ${t.level}${note ? ` · ${note}` : ''}`),
