@@ -2,7 +2,7 @@
 import { CFG } from '../src/game.js';
 import { h, toast, sprite } from './kit.js';
 import { errText } from './errors.js';
-import { signInSheet } from './account.js';
+import { signInSheet, pending } from './account.js';
 import * as cloud from './cloud.js';
 
 const SIDES = {
@@ -30,7 +30,7 @@ export function showOnboarding(game, onDone) {
         h('strong.display', s.name),
         h('span', s.blurb)))),
       h('button.btn.gold.big', { type: 'button', disabled: !faction, onclick: nameStep }, faction ? (faction === 'hero' ? 'Seguir como héroe' : 'Seguir como villano') : 'Elegí un bando'),
-      cloud.account().status === 'online' ? h('button.link-btn', { type: 'button', onclick: () => signInSheet({ fromGame: false }) }, 'Ya tengo un héroe') : null));
+      cloud.account().status === 'online' ? h('button.link-btn', { type: 'button', onclick: () => signInSheet({ fromGame: false, resume: pending()?.kind === 'signin' ? pending() : undefined }) }, 'Ya tengo un héroe') : null));
   };
 
   const nameStep = () => {
