@@ -1,0 +1,1 @@
+{"name":"oathbreak-logic","type":"module","private":true,"scripts":{"test":"node --test","sim":"node sim/sim.js"}}
