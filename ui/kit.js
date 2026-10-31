@@ -186,8 +186,8 @@ addEventListener('keydown', (e) => {
 // El nivel define la etapa. Cortes: 1·5·10·15·25·32·40·60·80·100. Solo interfaz: la fachada no se toca.
 export const STAGE_LEVELS = [1, 5, 10, 15, 25, 32, 40, 60, 80, 100];
 export const stageOf = (level = 1) => { let s = 1; STAGE_LEVELS.forEach((l, i) => { if (level >= l) s = i + 1; }); return s; };
-// Bandos con las 10 etapas entregadas. El Villano usa su marcador hasta que lleguen sus sprites.
-const STAGED = { hero: true, villain: false };
+// Bandos con las 10 etapas entregadas (Héroe 30/10, Villano 31/10).
+const STAGED = { hero: true, villain: true };
 const SPRITE = { hero: 'ui/img/hero.webp', villain: 'ui/img/villain.webp' };
 const fac = (f) => (f === 'villain' ? 'villain' : 'hero');
 const pad = (n) => String(n).padStart(2, '0');
