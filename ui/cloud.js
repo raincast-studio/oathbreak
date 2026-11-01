@@ -29,6 +29,7 @@ export function account() {
     pendingEmail: user?.new_email || null,
     createdAt: user ? Date.parse(user.created_at) : null,
     lastSync: A.lastSync, dirty: base ? readMeta().dirty : false,
+    error: A.error ?? null, // 31/10: el último error al subir (se muestra; antes fallaba en silencio)
   };
 }
 
@@ -113,7 +114,7 @@ export async function push() {
     if (r.ok) {
       const now = readMeta(); // pudo cambiar mientras subía
       writeMeta({ uid: user.id, rev: r.rev, dirty: now.dirty && base.getItem(SAVE_KEY) !== raw });
-      A.lastSync = Date.now();
+      A.lastSync = Date.now(); A.error = null;
     } else if (r.error === 'conflicto') {
       const remote = await fetchRemote();
       if (remote) { adopt(remote); return reloadWith('Se cargó tu partida de otro dispositivo.'); }

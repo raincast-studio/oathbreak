@@ -4,14 +4,18 @@ import { h, icon, num, clock, toast, sprite, avatar } from '../kit.js';
 import { firstSteps } from '../onboarding.js';
 import { startFight } from '../fight.js';
 import { claimMission, rewardLine } from './misiones.js';
+import { nextAction, shieldChip } from '../extras.js';
 export const title = 'Inicio';
 
 export function render(ctx) {
+  // 31/10: primero la próxima acción y los Primeros pasos (antes quedaban bajo el pliegue).
   return h('section.stack',
+    ctx.S.event ? h('p.event-banner', icon('star', 18), h('span', h('strong', ctx.S.event), ': +25% de XP por ganar en la Arena y Gloria doble.')) : null,
+    nextAction(ctx),
+    firstSteps(ctx),
     stage(ctx),
     cards(ctx),
     lastAttack(ctx),
-    firstSteps(ctx),
     dailyCard(ctx));
 }
 
@@ -21,7 +25,7 @@ function stage({ S, go }) {
   return h('section.stage', { 'aria-label': 'Tu personaje' },
     h('div.stage-glow', { 'aria-hidden': 'true' }),
     sprite(p.faction, '.stage-sprite', p.level),
-    h('div.stage-hp', h('div.hp-top', h('span.hp-l', 'VIDA'), h('span.tnum', `${num(p.maxHp)}/${num(p.maxHp)}`)), h('div.hp-track', h('span'))),
+    shieldChip(p), // 31/10: reemplaza la barra de VIDA, que siempre estaba llena (la vida no persiste)
     h('div.fabs.left', h('button.fab', { type: 'button', onclick: () => go('personaje', { intent: 'equipo' }) }, icon('equipo', 22), 'EQUIPO')),
     h('div.fabs.right', h('button.fab', { type: 'button', onclick: () => go('guarida', { intent: 'tienda' }) }, icon('tienda', 22), 'TIENDA')));
 }

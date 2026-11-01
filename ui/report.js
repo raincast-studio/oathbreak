@@ -39,11 +39,30 @@ export function playHunt(report, viewerId, { onReveal, onDone } = {}) {
     h('div.arena', fighter(report[me], 'left'), h('span.clash', { 'aria-hidden': 'true' }), fighter(report[foe], 'right')),
     h('p.display.hunting-title', `Cazando a ${report[foe].name}…`),
     h('div.hunt-progress', h('span'))));
+  hits(el, report, me, ms);
   setTimeout(() => {
     onReveal?.();
     el.replaceChildren(reportView(report, me, () => { close(el); onDone?.(); }));
     el.querySelector('.rep-continue')?.focus({ preventScroll: true });
   }, ms);
+}
+
+// 31/10: golpes animados durante "Cazando…": hasta 4 golpes reales del combate (número de daño y sacudida del que lo recibe).
+// No adelanta el resultado: se eligen los primeros golpes, que no dicen quién gana.
+function hits(el, report, me, ms) {
+  if (reduced() || !report.rounds) return;
+  const seq = report.rounds.slice(0, 4);
+  seq.forEach((x, i) => setTimeout(() => {
+    const arena = el.querySelector('.arena');
+    if (!arena) return;
+    const hitMe = (x.actor === 'A') !== (me === 'attacker'); // el golpe lo recibe "mi" luchador (izquierda)
+    const side = hitMe ? 'left' : 'right';
+    const f = arena.querySelector(`.fighter.${side}`);
+    const pop = h(`span.dmg.${side}${x.crit ? '.crit' : ''}${x.dodge ? '.miss' : ''}`, x.dodge ? '¡Esquiva!' : `−${x.dmg}${x.crit ? '!' : ''}`);
+    arena.append(pop);
+    setTimeout(() => pop.remove(), 700);
+    if (f && !x.dodge) { f.classList.remove('hit'); void f.offsetWidth; f.classList.add('hit'); }
+  }, ms * (0.18 + i * 0.17)));
 }
 
 // Informe ya resuelto (también sirve para abrir uno desde la bandeja).

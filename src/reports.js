@@ -32,6 +32,7 @@ export function details(report) {
   const n = { A: report.attacker.name, D: report.defender.name };
   const out = [];
   let lastR = 0;
+  if (!report.rounds) return ['El detalle por rondas solo se guarda en los 5 informes más recientes.'];
   for (const x of report.rounds) {
     if (x.r !== lastR) { out.push(`— Ronda ${x.r} —`); lastR = x.r; }
     const foe = x.actor === 'A' ? n.D : n.A;

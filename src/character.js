@@ -6,7 +6,7 @@ import { hasKey } from './economy.js';
 export function createEntity({ id, name, faction, isBot = false, now }) {
   const stats = Object.fromEntries(CFG.stats.map((s) => [s, CFG.start.stat]));
   const e = {
-    id, name, faction, isBot,
+    id, name, faction, isBot, createdAt: now,
     level: 1, xp: 0, stats,
     gear: {}, // slot -> tier
     gold: CFG.start.gold, bank: 0, rep: 0,
@@ -77,7 +77,13 @@ export function addXp(e, amount) {
 }
 
 export const totalPoints = (e) => CFG.stats.reduce((a, k) => a + e.stats[k], 0);
-export const statCost = (e, s) => Math.round(CFG.statCost(totalPoints(e)) * CFG.statCostMul[s]);
+// Multiplicador por atributo: el de arranque hasta statCostBlend[0] puntos, el normal desde statCostBlend[1], lineal en el medio.
+export function statMul(total, s) {
+  const [a, b] = CFG.statCostBlend ?? [0, 0], E = CFG.statCostMulEarly ?? CFG.statCostMul;
+  const t = Math.min(1, Math.max(0, (total - a) / Math.max(1, b - a)));
+  return E[s] + (CFG.statCostMul[s] - E[s]) * t;
+}
+export const statCost = (e, s) => Math.round(CFG.statCost(totalPoints(e)) * statMul(totalPoints(e), s));
 
 export function buyStat(e, s) {
   if (!CFG.stats.includes(s)) return { ok: false, error: 'stat_invalido' };

@@ -98,7 +98,7 @@ test('amigos y regalos: tope diario, uno por amigo, lo regalado no se recicla, r
 
 test('temporada: la gloria desbloquea escalones; un escalón se cobra una vez; se reinicia a las 4 semanas', () => {
   const p = bot('p', 'hero', { isBot: false });
-  Se.addGlory(p, 'daily', MON, 26); // 130 = 1 escalón
+  Se.addGlory(p, 'daily', MON, CFG.season.gloryPerTier / CFG.season.glory.daily); // = 1 escalón
   const st = Se.seasonStatus(p, MON);
   assert.equal(st.reached, 1);
   const g0 = p.gold;

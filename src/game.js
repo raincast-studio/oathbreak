@@ -1,6 +1,6 @@
 // Fachada única para cualquier cliente (debug HTML hoy, UI Chibi mañana, servidor en E6).
 // Toda entrada externa se valida acá. Consultas (query) no escriben el guardado; comandos (command) sí.
-import { CFG, CONTRACTS, HOUR } from './config.js';
+import { CFG, CONTRACTS, HOUR, DAY } from './config.js';
 import { createClock, memoryStorage, readSave, saveWorld, clearWorld, backupSave, mulberry32, deriveSeed, dayKey, weekKey } from './core.js';
 import * as C from './character.js';
 import * as S from './systems.js';
@@ -29,6 +29,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     try { world = migrate(s.world, CFG.saveVersion); } catch { saveIssue = 'corrupt'; }
   } else if (s.status === 'future' || s.status === 'corrupt') saveIssue = s.status;
   if (world?.clockOffset) clock.offset = world.clockOffset;
+  if (world) S.compactWorld(world, clock.now());
 
   const pid = () => playerId ?? world?.playerId;
   const P = () => (world && hasKey(world.entities, pid()) ? world.entities[pid()] : null);
@@ -113,7 +114,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
           stats: p.stats, effStats: C.effStats(p),
           statCosts: Object.fromEntries(CFG.stats.map((k) => [k, C.statCost(p, k)])),
           gear: p.gear, gearStat: Object.fromEntries(Object.keys(CFG.gear.slots).map((k) => [k, C.gearStatOf(p, k)])),
-          newbieShield: p.level < CFG.pvp.newbieLevel,
+          newbieShield: p.level < CFG.pvp.newbieLevel, shield: S.shieldInfo(p),
           mission: p.mission && { ...p.mission, msLeft: Math.max(0, p.mission.end - now), done: now >= p.mission.end },
         },
         unread: p.inbox.filter((i) => !i.read).length,
@@ -121,8 +122,21 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         friendRequests: So.pendingIn(p, now).length,
         faction: S.factionScore(world, now),
         lastPrize: world.lastPrize ?? null,
+        event: S.weekendEvent(now)?.name ?? null,
       }));
     },
+
+    // 31/10: bono de bienvenida por invitación (una sola vez, solo el primer día del personaje).
+    welcomeBonus: (code) => command((p, now) => {
+      code = String(code ?? '').trim();
+      if (!/^[A-Za-z0-9]{4,16}$/.test(code)) return err('codigo_invalido');
+      if (p.referral) return err('ya_cobrado');
+      if (now - (p.createdAt ?? now) > DAY) return err('fuera_de_plazo');
+      p.referral = { code, ts: now };
+      p.gold += CFG.referral.newGold;
+      track(world, p, 'referral', { code }, now);
+      return { ok: true, gold: CFG.referral.newGold };
+    }),
 
     // Personaje
     buyStat: (k) => command((p, now) => {
@@ -184,6 +198,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     })),
     attack: (id) => command((p, now) => {
       const d = ent(id);
+      if (d) S.fixPrey(world, p, now);
       return d ? S.pvp(world, p, d, now) : err('objetivo_invalido');
     }),
     // "Cazar": ataca a un objetivo válido al azar; si no puede, explica por qué (energía u objetivos).
@@ -191,6 +206,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       if (p.mission) return err('en_mision');
       if (p.energy < CFG.energy.pvpCost) return err('sin_energia');
       // La presa del día no sale al azar: hay que ir a buscarla desde la lista de objetivos.
+      S.fixPrey(world, p, now);
       const prey = p.preyDone === dayKey(now) ? null : S.preyOf(world, p, now);
       const pool = Object.values(world.entities).filter((e) => e.id !== prey && !S.attackBlock(p, e, now));
       if (!pool.length) return err('sin_objetivos');

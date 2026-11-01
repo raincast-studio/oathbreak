@@ -16,10 +16,12 @@ test('fórmulas cerradas', () => {
   const e = ent('a', 'hero');
   assert.equal(C.maxHp(e), 50 + 5 * 8);
   assert.equal(CFG.xpNeed(1), 100);
-  assert.equal(C.statCost(e, 'fue'), Math.round(10 * 5 ** 1.5 * 1.8));
-  assert.equal(C.statCost(e, 'def'), Math.round(10 * 5 ** 1.5 * 0.4));
+  // 31/10: con 20 puntos rige el multiplicador de arranque; se mezcla con el normal hasta los 28 puntos.
+  assert.equal(C.statCost(e, 'fue'), Math.round(10 * 5 ** 1.5 * CFG.statCostMulEarly.fue));
+  assert.equal(C.statCost(e, 'def'), Math.round(10 * 5 ** 1.5 * CFG.statCostMulEarly.def));
   C.buyStat(Object.assign(e, { gold: 1e6 }), 'def'); // subir cualquier stat encarece todos por igual
-  assert.equal(C.statCost(e, 'fue'), Math.round(10 * (21 / 4) ** 1.5 * 1.8));
+  assert.equal(C.statCost(e, 'fue'), Math.round(10 * (21 / 4) ** 1.5 * C.statMul(21, 'fue')));
+  assert.ok(Math.abs(C.statMul(28, 'fue') - CFG.statCostMul.fue) < 1e-9 && C.statMul(20, 'fue') === CFG.statCostMulEarly.fue);
   assert.equal(dodgeChance(10, 10), 0.45);
   assert.ok(dodgeChance(100, 1) < 0.9 && dodgeChance(100, 1) > 0.89); // asíntota
   assert.equal(critChance(10, 10), 0.175);
@@ -166,7 +168,7 @@ test('compra de stat y equipo', () => {
   assert.equal(C.buyGear(e, 'arma', 1).error, 'ya_equipado');
 });
 
-test('informes: máximo 50 FIFO', () => {
+test('informes: máximo CFG.reports.max FIFO; solo los más nuevos guardan las rondas', () => {
   const w = world();
   const a = ent('p0', 'hero', { isBot: false, inbox: [] });
   for (let i = 0; i < 60; i++) {
@@ -175,7 +177,8 @@ test('informes: máximo 50 FIFO', () => {
     a.lastAttackOn = {};
     S.pvp(w, a, d, T0 + i, { ignoreEnergy: true });
   }
-  assert.equal(a.inbox.length, 50);
+  assert.equal(a.inbox.length, CFG.reports.max);
+  assert.ok(a.inbox.every((x, i) => (i < CFG.reports.detailed) === Array.isArray(x.report.rounds)));
   assert.ok(a.inbox.every((x, i, arr) => i === 0 || arr[i - 1].report.ts >= x.report.ts)); // ordenada por fecha
 });
 

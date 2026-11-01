@@ -7,13 +7,16 @@ export const CFG = {
   saveVersion: 5,
   dayOffsetMs: -3 * HOUR, // reset diario a las 00:00 ART
   stats: ['fue', 'def', 'agi', 'res'],
-  start: { stat: 5, gold: 100 },
+  start: { stat: 5, gold: 250 }, // 31/10: 250 para poder mejorar 2 atributos en la primera sesión
 
   // Post-15 la curva se empina +4% por nivel (más difícil progresar).
   xpNeed: (lvl) => Math.round(100 * lvl ** 1.4 * (1 + 0.04 * Math.max(0, lvl - 15))),
   // Costo de un punto según el TOTAL de puntos (repartir no es más barato que especializarse) × multiplicador por stat.
   statCost: (totalPoints) => 10 * (totalPoints / 4) ** 1.5,
   statCostMul: { fue: 1.8, def: 0.4, agi: 1, res: 0.4 }, // calibrado con sim/model.js para que ninguna build domine
+  // 31/10: al empezar (hasta 20 puntos totales) Fue es más barata y Def/Res más caras, para que el triángulo se cumpla desde el
+  // primer día (antes, con 600 de oro, las builds iban de 36% a 74%). Se mezcla linealmente con statCostMul hasta los 28 puntos.
+  statCostMulEarly: { fue: 1.6, def: 0.6, agi: 1, res: 0.5 }, statCostBlend: [20, 28],
 
   hp: { base: 50, perRes: 8 }, // cada combate arranca con la vida completa: el único recurso limitante es la energía
   energy: { max: 12, regenMin: 20, pvpCost: 1 },
@@ -37,6 +40,8 @@ export const CFG = {
     xpWinMissionMin: 19,   // XP de victoria = XP de misión de N min al nivel del rival (20/10: PvP ≥ 50% de la XP del jugador activo)
     xpLosePct: 0.2,        // la derrota da 20% de eso
     newbieLevel: 5,        // jugadores reales bajo este nivel no pueden ser atacados
+    // 31/10: el escudo se retira de a poco: en Nv 5, 6 y 7 se pueden recibir como máximo 1, 2 y 3 ataques por día (de jugadores y de bots).
+    shieldFade: [1, 2, 3],
     // Recompensa del defensor que gana: oro de misión de N min al nivel del atacante × poder atk/def (acotado).
     defenseBounty: { missionMin: 30, ratioMin: 0.5, ratioMax: 1.5, minAttackerChance: 0.2, perPairPerDay: 1, minAttackerWinrate: 0.25, recentWindow: 20, recentMin: 5 },
     repWin: 1,
@@ -100,7 +105,7 @@ export const CFG = {
       goldMissionMin: 4, xp: 5, rewardedCap: 10, renownCap: 30,
       hostBoostPct: 0.01, hostBoostMax: 10, hostBoostMin: 60,
       streakMinVisits: 3, streak7Item: 'trofeo_racha', streak30Rarity: 'raro', shieldsPerWeek: 1,
-      guestbookMax: 30,
+      guestbookMax: 30, guestbookMaxBot: 3, // 31/10: los bots guardan menos firmas (40 bots × 30 firmas pesaban ~115 KB)
       hostTipPct: 0.5, hostTipCap: 10, hostRenownCap: 20, // anfitrión: propina = 50% del oro del visitante, tope 10/día; +1 renombre por visitante único
       applauseWeight: 2, // escaparate = prestigio + 2 × aplaudidores únicos de la semana
       prize: { top: 3, renown: 50 }, // premio semanal del escaparate: top 3 por facción y por liga
@@ -120,10 +125,16 @@ export const CFG = {
   },
 
   season: {
-    weeks: 4, tiers: 30, gloryPerTier: 130, renownPerTier: 15, goldMissionMin: 60,
+    weeks: 4, tiers: 30, gloryPerTier: 160, // 31/10: antes 130 (el pase se completaba antes de tiempo)
+    renownPerTier: 15, goldMissionMin: 60,
     glory: { win: 3, visit: 2, gift: 3, daily: 5, bonus: 10, mission: 2, prey: 10, faction: 50 },
     cosmetics: { 10: 'temp_aura', 20: 'temp_estatua', 30: 'temp_portal' },
   },
+
+  // 31/10: evento de fin de semana (sábado y domingo, ART): más XP por ganar en la Arena y Gloria doble por victoria.
+  events: { weekend: { name: 'Fin de semana de caza', days: [6, 0], xpWinMult: 1.25, gloryWinMult: 2 } },
+  // 31/10: invitar amigos. El invitado recibe oro al crear su personaje; el premio del que invita llega con el servidor (E6).
+  referral: { newGold: 300 },
 
   faction: { minWins: 5, renown: 20 }, // premio semanal a la facción ganadora (miembros con ≥ 5 victorias)
 
@@ -145,12 +156,12 @@ export const CFG = {
     ],
   },
 
-  reports: { max: 50 },
+  reports: { max: 25, detailed: 5 }, // 31/10: guardado ≤ 120 KB — solo los 5 informes más nuevos guardan las rondas
   bots: { count: 40, maxCatchUpHours: 72, attackChancePerHour: 0.04, incomeEff: 0.85, reservePct: 0.2, handGoldMissionMin: 60, wealth: [0.3, 2.5], visitChancePerHour: 0.25, duelChancePerHour: 0.3 },
-  telemetry: { max: 500, sessionGapMin: 30 },
+  telemetry: { max: 60, sessionGapMin: 30 }, // 31/10: antes 500 (50 KB del guardado); en E6 va al servidor
   ops: { max: 50 },
   // Emparejamiento de bots por probabilidad de victoria estimada (no por "poder" lineal).
-  matchmaking: { samples: 16, playerWr: { base: 0.66, from: 15, perLvl: 0.008, min: 0.52 }, skillSpread: 0.1, band: 0.06, scaleUp: 1.04, scaleDown: 0.98, scaleMin: 0.5, scaleMax: 2 },
+  matchmaking: { samples: 16, playerWr: { base: 0.66, from: 15, perLvl: 0.008, min: 0.52, early: [[2, 0.8], [4, 0.72]] }, skillSpread: 0.1, band: 0.06, scaleUp: 1.04, scaleDown: 0.98, scaleMin: 0.5, scaleMax: 2 },
   ui: { huntLoadingMs: 2000 }, // pantalla "cazando…" fija (decisión del dueño 20/10: no se puede saltar)
 };
 

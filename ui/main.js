@@ -15,6 +15,7 @@ import * as social from './tabs/social.js';
 import * as personaje from './tabs/personaje.js';
 import * as cloud from './cloud.js';
 import { maybeNag, guestDays, linkSheet } from './account.js';
+import { awaySummary, markSeen, checkEvolution, registerPwa, scheduleNotify, claimRef } from './extras.js';
 
 // [id, módulo, ícono, tecla]
 const VIEWS = [['base', base, 'base', 'i'], ['misiones', misiones, 'misiones', 'm'], ['arena', arena, 'arena', 'a'],
@@ -52,7 +53,7 @@ export function act(btn, run, okText, { refresh: doRefresh = true } = {}) {
 function load() {
   const st = game.state();
   if (!st.ok) return false;
-  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.now = st.now; S.at = performance.now();
+  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.event = st.event; S.now = st.now; S.at = performance.now();
   return true;
 }
 function refresh({ full = true } = {}) {
@@ -60,7 +61,7 @@ function refresh({ full = true } = {}) {
   document.body.dataset.faction = S.player.faction;
   drawTop();
   drawGuestBanner();
-  if (full) { drawBadges(); drawTab(); }
+  if (full) { drawBadges(); drawTab(); checkEvolution(S); scheduleNotify(S, game); }
   maybeNag(S.player);
 }
 
@@ -73,6 +74,13 @@ function drawGuestBanner() {
   if (!el.hidden) el.replaceChildren(icon('shield', 18), h('span', `Jugás como invitado hace ${d} días. Vinculá tu email para no perder tu héroe.`),
     h('button.btn.gold.small', { type: 'button', disabled: a.status !== 'online', onclick: () => linkSheet({ onDone: refresh }) }, 'Guardar'));
 }
+// 31/10: si la nube rechaza el guardado, avisar una vez por error (antes fallaba en silencio).
+let cloudErr = null;
+cloud.onChange(() => {
+  const e = cloud.account().error;
+  if (e && e !== cloudErr) toast(e === 'muy_grande' || /256|grande|size/i.test(e) ? 'Tu partida no se pudo subir a la nube (es muy grande). Sigue guardada en este dispositivo.' : 'No pudimos guardar en la nube. Tu partida sigue guardada en este dispositivo y lo reintentamos solos.', 'err');
+  cloudErr = e;
+});
 cloud.onChange(() => { if (!S.player) return; drawGuestBanner(); if (S.tab === 'personaje' && !sheetOpen()) drawTab(); });
 // Solo la barra superior. Con energyOnly no se tocan oro, nivel ni XP (se revelan con el informe).
 function refreshTop({ energyOnly = false } = {}) { if (load()) drawTop(energyOnly); }
@@ -303,6 +311,11 @@ function start(tab) {
   go(S.tab);
   const note = cloud.takeNotice();
   if (note) toast(note, 'prize');
+  claimRef(game);
+  awaySummary({ S, game, go });
+  registerPwa();
+  // "Mientras no estabas": se mide desde la última vez que la app estuvo visible.
+  addEventListener('visibilitychange', () => { if (document.hidden) { const st = game.state(); if (st.ok) markSeen(st.now); } else if (load()) awaySummary({ S, game, go }); });
 }
 // Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Inicio con "Primeros pasos".
 function boot() {

@@ -46,7 +46,7 @@ export function render(ctx) {
     const tg = game.targets();
     const list = tg.ok ? tg.list : [];
     const prey = list.find((t) => t.prey && !t.block);
-    const rest = list.filter((t) => t !== prey);
+    const rest = list.filter((t) => t !== prey).sort((a, b) => !!a.block - !!b.block); // 31/10: disponibles primero
     body = h('div.stack',
       prey ? h('section.prey',
         h('div.prey-badge', icon('star', 18), 'Presa del día'),
@@ -58,6 +58,7 @@ export function render(ctx) {
     h('div.page-head',
       h('div', h('p.kick', 'PVP POR TURNOS · MÁX 5 RONDAS'), h('h1.h1', 'ARENA')),
       h('span.pill', '1 energía por ataque')),
+    S.event ? h('p.event-banner', icon('star', 18), h('span', h('strong', S.event), ': +25% de XP por ganar y Gloria doble.')) : null,
     busy ? missionBanner(ctx) : noEnergy ? h('p.note', 'Sin energía. Recuperás 1 en ', h('strong.tnum', { 'data-energy-cd': '' }, clock(p.nextEnergyMs)), '.') : null,
     segmented([['rivales', 'Rivales'], ['venganza', revenge.length ? `Venganza · ${revenge.length}` : 'Venganza'], ['ranking', 'Ranking']], UI.sub, (k) => { UI.sub = k; ctx.refresh(); }),
     body);

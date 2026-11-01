@@ -336,7 +336,7 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
   // Antiabuso: las cuentas novatas visitan y ganan, pero no generan propina, renombre ni aplausos al anfitrión.
   if (!v.isBot && v.level < CFG.pvp.newbieLevel) {
     h.lair.guestbook.unshift({ id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts: now, applause: false, tip: 0 });
-    if (h.lair.guestbook.length > cfg.guestbookMax) h.lair.guestbook.length = cfg.guestbookMax;
+    { const gbMax = h.isBot ? cfg.guestbookMaxBot : cfg.guestbookMax; if (h.lair.guestbook.length > gbMax) h.lair.guestbook.length = gbMax; }
     return out;
   }
   const d = dayKey(now);
@@ -346,9 +346,10 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
     h.gold += out.hostTip; h.lair.tips.count++;
   }
   if (h.lair.tips.renown < cfg.hostRenownCap) { h.lair.renown++; h.lair.tips.renown++; }
-  if (h.lair.boosts.filter((end) => end > now).length < cfg.hostBoostMax) h.lair.boosts.push(now + cfg.hostBoostMin * MIN);
+  h.lair.boosts = h.lair.boosts.filter((end) => end > now); // 31/10: los vencidos se descartan (antes crecían sin límite)
+  if (h.lair.boosts.length < cfg.hostBoostMax) h.lair.boosts.push(now + cfg.hostBoostMin * MIN);
   h.lair.guestbook.unshift({ id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts: now, applause: applaud, tip: out.hostTip });
-  if (h.lair.guestbook.length > cfg.guestbookMax) h.lair.guestbook.length = cfg.guestbookMax;
+  { const gbMax = h.isBot ? cfg.guestbookMaxBot : cfg.guestbookMax; if (h.lair.guestbook.length > gbMax) h.lair.guestbook.length = gbMax; }
   if (applaud) {
     const w = weekKey(now);
     if (h.lair.applause.week !== w) h.lair.applause = { week: w, voters: [] };

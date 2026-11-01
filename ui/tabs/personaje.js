@@ -3,6 +3,19 @@ import { CFG, ITEM } from '../../src/game.js';
 import { h, icon, num, clock, toast, openSheet, closeSheet, avatar } from '../kit.js';
 import { segmented } from './guarida.js';
 import { accountCard } from '../account.js';
+import { notifyState, askNotify } from '../extras.js';
+
+// 31/10: avisos (misión terminada, energía llena, te atacaron) e instalación como app.
+function notifyCard(ctx) {
+  const st = notifyState();
+  return h('section.card',
+    h('h2.display', 'Avisos'),
+    h('p.muted', st === 'granted' ? 'Activados: te avisamos cuando termine tu misión, se llene tu energía o te ataquen (con el juego abierto o instalado en segundo plano).'
+      : st === 'denied' ? 'Bloqueados en este navegador. Activalos desde la configuración del sitio.'
+      : st === 'unsupported' ? 'Este navegador no permite avisos.' : 'Te avisamos cuando termine tu misión, se llene tu energía o te ataquen.'),
+    st === 'default' ? h('button.btn.gold', { type: 'button', onclick: async () => { await askNotify(); ctx.refresh(); } }, 'Activar avisos') : null,
+    h('p.muted.hint', 'Tip: instalá el juego desde el menú del navegador ("Agregar a la pantalla de inicio") para abrirlo como una app.'));
+}
 export const title = 'Personaje';
 
 const UI = { sub: 'atributos' };
@@ -27,7 +40,7 @@ export function render(ctx) {
         h('span.muted', `${FAC[p.faction]} · Nivel ${p.level} · ${num(p.maxHp)} de vida`),
         h('span.muted.tnum', `${p.record.w} victorias · ${p.record.l} derrotas · ${num(p.rep)} reputación`))),
     segmented(subs, UI.sub, (k) => { UI.sub = k; ctx.refresh(); }),
-    UI.sub === 'atributos' ? statsView(ctx) : UI.sub === 'equipo' ? gearView(ctx) : UI.sub === 'banco' ? bankView(ctx) : UI.sub === 'cuenta' ? accountCard(ctx) : seasonView(ctx));
+    UI.sub === 'atributos' ? statsView(ctx) : UI.sub === 'equipo' ? gearView(ctx) : UI.sub === 'banco' ? bankView(ctx) : UI.sub === 'cuenta' ? h('div.stack', accountCard(ctx), notifyCard(ctx)) : seasonView(ctx));
 }
 
 /* ---------- Atributos ---------- */
@@ -103,6 +116,7 @@ function bankView(ctx) {
   const confirmDeposit = () => {
     const n = val();
     if (!(n > 0)) return ctx.act(null, (g) => g.deposit(n));
+    if (n > ctx.S.player.gold) return toast(`No te alcanza: tenés ${num(ctx.S.player.gold)} de oro en mano.`, 'err'); // 31/10: antes recién avisaba al confirmar
     const cut = Math.ceil(n * fee);
     openSheet({ title: 'Confirmar depósito', body: h('div.stack',
       h('p.fee-alert', icon('coin', 18), `Depositar cuesta el ${fee * 100}% de lo que depositás.`),

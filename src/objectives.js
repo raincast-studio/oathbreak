@@ -12,7 +12,9 @@ function ensure(world, e, now, store = true) {
   if (e.daily?.day === d) return e.daily;
   let h = 2166136261; for (const ch of e.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619); // FNV-1a del id: cada jugador tiene los suyos
   const rng = mulberry32((world.seed ^ Math.imul(d, 0x27d4eb2d) ^ h) >>> 0);
-  const pool = CFG.daily.pool.slice();
+  // 31/10: solo objetivos que se pueden cumplir hoy (sin Taller no hay "Cobrá el Taller"; sin 2 amigos no hay "Mandá 2 regalos").
+  const doable = { workshop: (e.lair?.buildings?.taller ?? 0) > 0, gift: (e.friends ?? []).length >= 2 };
+  const pool = CFG.daily.pool.filter((o) => doable[o.id] !== false);
   const picks = [];
   while (picks.length < CFG.daily.count) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0].id);
   const fresh = { day: d, ids: picks, progress: Object.fromEntries(picks.map((id) => [id, 0])), claimed: [], bonus: false };

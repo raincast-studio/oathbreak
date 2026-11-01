@@ -76,7 +76,7 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 - **Regalos chicos:** solo comunes de hasta 2 casillas, tope de 5 recibidos por día, vendibles a los 3 días por 15 de oro.
 - **Tienda:** 4 fijos + 12 rotativos; cada casilla sortea rareza 45/37/15/3% y después el objeto.
 - **Ranking** de la facción rival (`ranking()`).
-- La interfaz (`app.html` + `ui/`) es la del artifact OATHBREAK; `index.html` es la página de prueba vieja.
+- La interfaz es `index.html` + `ui/` (antes se llamaba `app.html`).
 
 ## 1b: guardado en la nube provisional (30/10)
 - Supabase `oathbreak` (`sa-east-1`). Tabla `saves` (partida en JSON por jugador) con RLS de solo lectura; se escribe únicamente con `save_game(data, rev)` (dueño, tope 256 KB, versión optimista).
@@ -84,3 +84,12 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 - Sesión anónima de invitado; vincular con email + código de 6 dígitos (mismo `playerId`). "Ya tengo un héroe" para entrar desde otro dispositivo.
 - `ui/account.js`: hoja "Guardá tu héroe" (primera caza ganada o nivel 3; vuelve a las 24 h), sección Cuenta en Personaje y aviso a los 7 días. `pg_cron` purga invitados sin vincular con 30 días sin actividad.
 - La lógica (`src/`) no cambió. En E6 esto se reemplaza por los comandos del servidor.
+
+## Plan de la revisión experta (31/10)
+- **Primera hora:** al crear el jugador, los bots que lo orbitan se calibran al instante (`calibrateBots`); winrate objetivo 80% en Nv 1–2 y 72% en Nv 3–4 (`matchmaking.playerWr.early`). Primera pelea ganada ~80% (antes 37%). Presa del día de tu nivel o menor, fijada en el día (`fixPrey`). 250 de oro inicial. Objetivos del día solo si se pueden cumplir (sin Taller no hay "Cobrá el Taller"; sin 2 amigos no hay regalos).
+- **Atributos:** multiplicador de arranque `statCostMulEarly` (Fue 1,6 · Def 0,6 · Agi 1 · Res 0,5) que se mezcla con el normal entre 20 y 28 puntos. Con 600 de oro las builds razonables van de 43% a 67% (antes 37–75%); los asserts a 4.000/15.000/60.000 siguen pasando.
+- **Guardado:** ~95 KB el día 1 y ~140 KB el día 30 (antes 168 y 354). Informes: 25, con rondas solo los 5 más nuevos; telemetría 60 eventos; firmas de bots 3; potenciadores vencidos se descartan. `compactWorld` achica guardados viejos al cargar. La nube avisa si falla.
+- **Escudo de novato:** visible en Inicio; se retira de a poco (Nv 5/6/7: máx 1/2/3 ataques recibidos por día). La venganza ignora el tope diario.
+- **Interfaz:** "Próximo paso" y Primeros pasos arriba en Inicio; "Mientras no estabas" al volver (≥ 30 min); ceremonia "¡Evolucionaste!"; golpes animados en "Cazando…"; textos ≥ 11 px (10 px en fichas a ≤ 380 px) y botones de 44 px; Arena con disponibles primero; "Aceptar todas" en solicitudes; avisos abajo; depósito validado.
+- **PWA:** `manifest.webmanifest`, `sw.js` e íconos; avisos de misión, energía llena y ataques mientras la app sigue viva en segundo plano (el push con la app cerrada necesita el servidor, E6).
+- **Crecimiento:** invitar por WhatsApp/compartir con `?ref=CODIGO` (+300 de oro al invitado; el premio del que invita llega con E6). Evento "Fin de semana de caza" (sábado y domingo: +25% XP por ganar, Gloria ×2). Pase: 160 de Gloria por escalón.

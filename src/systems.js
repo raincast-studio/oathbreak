@@ -67,6 +67,22 @@ export const levelRange = (lvl) => Math.max(CFG.pvp.rangeAbs, Math.floor(lvl * C
 export const inRange = (a, b) => Math.abs(a.level - b.level) <= levelRange(Math.max(a.level, b.level));
 
 // Cupos de defensas recibidas por día, separados: los ataques de bots no consumen el cupo de ataques de jugadores reales.
+// Ataques que puede recibir por día: con el escudo de novato retirándose (Nv 5–7) el tope es más bajo.
+export function receiveCap(d, fromBot) {
+  const full = fromBot ? CFG.pvp.maxBotAttacksPerDay : CFG.pvp.maxReceivedPerDay;
+  if (d.isBot) return full;
+  const fade = CFG.pvp.shieldFade ?? [];
+  const i = d.level - CFG.pvp.newbieLevel;
+  return i >= 0 && i < fade.length ? Math.min(full, fade[i]) : full;
+}
+// Estado del escudo para la interfaz.
+export function shieldInfo(e) {
+  const fade = CFG.pvp.shieldFade ?? [];
+  if (e.level < CFG.pvp.newbieLevel) return { mode: 'full', untilLevel: CFG.pvp.newbieLevel };
+  const i = e.level - CFG.pvp.newbieLevel;
+  if (i < fade.length) return { mode: 'partial', perDay: fade[i], untilLevel: CFG.pvp.newbieLevel + fade.length };
+  return { mode: 'none' };
+}
 const receivedToday = (e, now, fromBot = false) => (e.received.day === dayKey(now) ? (fromBot ? e.received.bots ?? 0 : e.received.count) : 0);
 function bumpReceived(e, now, fromBot) {
   const d = dayKey(now);
@@ -99,7 +115,8 @@ export function attackBlock(a, d, now, { ignoreEnergy = false, duel = false } = 
   if (duel) return null; // duelos entre bots: sin cooldown ni tope de defensas recibidas
   const last = a.lastAttackOn[d.id];
   if (!rev && last && now - last < CFG.pvp.sameTargetCooldownMin * MIN) return 'cooldown_objetivo';
-  if (receivedToday(d, now, a.isBot) >= (a.isBot ? CFG.pvp.maxBotAttacksPerDay : CFG.pvp.maxReceivedPerDay)) return 'objetivo_protegido';
+  // 31/10: la venganza nunca falla por el tope diario (la interfaz promete "una vez").
+  if (!rev && receivedToday(d, now, a.isBot) >= receiveCap(d, a.isBot)) return 'objetivo_protegido';
   return null;
 }
 
@@ -137,6 +154,14 @@ function snap(e, defending = false) {
   if (defending && towerPct(e)) for (const k of ['def', 'agi']) stats[k] = Math.round(stats[k] * (1 + towerPct(e)));
   return { stats, hp: maxHp(e), maxHp: maxHp(e) }; // cada combate arranca con vida completa
 }
+// Evento de fin de semana activo (o null). Día de la semana en ART: 0 = domingo … 6 = sábado.
+export function weekendEvent(now) {
+  const ev = CFG.events?.weekend;
+  if (!ev) return null;
+  const wd = new Date(now + CFG.dayOffsetMs).getUTCDay();
+  return ev.days.includes(wd) ? ev : null;
+}
+
 // Oro robable: lo que la Bóveda no protege.
 export const lootable = (e) => Math.floor(e.gold * (1 - vaultPct(e)));
 const head = (e) => ({ id: e.id, name: e.name, lvl: e.level, faction: e.faction });
@@ -144,13 +169,24 @@ export const pvpXp = (rivalLevel) => missionReward(CFG.pvp.xpWinMissionMin, riva
 
 // Presa del día: un rival de tu rango elegido por semilla (mismo para todo el día mientras siga en rango).
 export function preyOf(world, e, now) {
+  if (e.prey?.day === dayKey(now) && world.entities[e.prey.id]) return e.prey.id; // fijada en el día (ver fixPrey)
   const cands = Object.values(world.entities)
     .filter((o) => o.faction !== e.faction && inRange(e, o) && (o.isBot || o.level >= CFG.pvp.newbieLevel))
-    .map((o) => o.id).sort();
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
   if (!cands.length) return null;
+  // 31/10: la presa es de tu nivel o menor cuando hay alguno (antes podía tocarle a un novato un rival de Nv 3–4).
+  const easy = cands.filter((o) => o.level <= e.level);
+  const pool = (easy.length ? easy : cands).map((o) => o.id);
   let h = (world.seed ^ Math.imul(dayKey(now), 0x9e3779b1)) >>> 0;
   for (const ch of e.id) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
-  return cands[h % cands.length];
+  return pool[h % pool.length];
+}
+
+// Fija la presa del día la primera vez que el jugador actúa (comandos): así no cambia si sube de nivel en el día.
+export function fixPrey(world, e, now) {
+  if (e.isBot || e.prey?.day === dayKey(now)) return;
+  const id = preyOf(world, e, now);
+  if (id) e.prey = { day: dayKey(now), id };
 }
 
 // Botín estimado (redondeado) para elegir objetivo: lo que robarías si ganás.
@@ -193,7 +229,8 @@ export function pvp(world, att, def, now, opts = {}) {
   else { const b = defenseBounty(att, def, now); bounty = b.gold; bountyReason = b.reason; def.gold += bounty; }
   if (!opts.duel) { att.recent = [...(att.recent ?? []), win === att].slice(-CFG.pvp.defenseBounty.recentWindow); }
 
-  const xpWin = Math.round(pvpXp(lose.level) * (win === att ? risk : 1));
+  const ev = weekendEvent(now);
+  const xpWin = Math.round(pvpXp(lose.level) * (win === att ? risk : 1) * (ev ? ev.xpWinMult : 1));
   const xpLose = Math.max(1, Math.round(xpWin * CFG.pvp.xpLosePct));
   const lvlWin = addXp(win, xpWin);
   const lvlLose = addXp(lose, xpLose);
@@ -204,8 +241,8 @@ export function pvp(world, att, def, now, opts = {}) {
   let prey = null;
   if (!opts.duel) {
     bump(world, att, 'hunt', now);
-    if (win === att) { bump(world, att, 'win', now); addGlory(att, 'win', now); }
-    if (win === def) addGlory(def, 'win', now);
+    if (win === att) { bump(world, att, 'win', now); addGlory(att, 'win', now, ev ? ev.gloryWinMult : 1); }
+    if (win === def) addGlory(def, 'win', now, ev ? ev.gloryWinMult : 1);
     // Presa del día: doble XP y bono de oro la primera vez que la derrotás.
     if (win === att && !att.isBot && att.preyDone !== dayKey(now) && preyOf(world, att, now) === def.id) {
       att.preyDone = dayKey(now);
@@ -252,6 +289,22 @@ function fileReport(e, report, role) {
   const i = e.inbox.findIndex((x) => x.report.ts < report.ts);
   if (i < 0) e.inbox.push(item); else e.inbox.splice(i, 0, item);
   if (e.inbox.length > CFG.reports.max) e.inbox.length = CFG.reports.max;
+  trimInbox(e);
+}
+// Los informes viejos pierden el detalle por rondas (el resultado, el botín y la XP se conservan).
+function trimInbox(e) {
+  for (let i = CFG.reports.detailed; i < (e.inbox?.length ?? 0); i++) if (e.inbox[i].report.rounds) e.inbox[i].report.rounds = null;
+}
+
+// 31/10: achica guardados viejos al cargar (informes, firmas de bots, potenciadores vencidos).
+export function compactWorld(world, now) {
+  const gbBot = CFG.lair.visit.guestbookMaxBot;
+  for (const e of Object.values(world.entities)) {
+    if (e.inbox) { if (e.inbox.length > CFG.reports.max) e.inbox.length = CFG.reports.max; trimInbox(e); }
+    if (e.isBot && e.lair.guestbook.length > gbBot) e.lair.guestbook.length = gbBot;
+    e.lair.boosts = e.lair.boosts.filter((end) => end > now);
+  }
+  if (world.events?.length > CFG.telemetry.max) world.events.splice(0, world.events.length - CFG.telemetry.max);
 }
 
 /* ---------- Jugadores (N por mundo) ---------- */
@@ -262,7 +315,31 @@ export function addPlayer(world, { id, name, faction, now }) {
   world.players = [...(world.players ?? []), id];
   // Reparte los bots entre los jugadores: cada bot "orbita" a su ancla.
   Object.values(world.entities).filter((e) => e.isBot).forEach((b, i) => { b.anchor = world.players[i % world.players.length]; });
+  calibrateBots(world, p);
   return p;
+}
+
+// 31/10: emparejamiento desde el minuto 0. Al crear un jugador, cada bot que lo orbita ajusta sus atributos
+// (bajando o subiendo de a un punto) hasta quedar en la banda de winrate objetivo. Antes, los bots de nivel 1
+// eran 5/5/5/5 como el jugador y la primera pelea se ganaba el 37% de las veces.
+export function calibrateBots(world, p) {
+  const mm = CFG.matchmaking;
+  for (const b of Object.values(world.entities)) {
+    if (!b.isBot || b.anchor !== p.id) continue;
+    const w = ARCHETYPES[b.arch] ?? ARCHETYPES.balanceado;
+    const goal = playerTargetWr(p.level) - (b.skill ?? 0);
+    for (let i = 0; i < 60; i++) {
+      const wc = winChance(p, b);
+      if (wc < goal - mm.band) {
+        const s = CFG.stats.filter((k) => b.stats[k] > 1).sort((x, y) => b.stats[y] / w[y] - b.stats[x] / w[x])[0];
+        if (!s) break;
+        b.stats[s]--;
+      } else if (wc > goal + mm.band) {
+        b.stats[CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0]]++;
+      } else break;
+    }
+    b.hp = maxHp(b);
+  }
 }
 
 /* ---------- Facción: marcador semanal (solo reputación ganada en combate esta semana) ---------- */
@@ -309,6 +386,8 @@ const cumXp = (lvl) => { let t = 0; for (let l = 1; l < lvl; l++) t += CFG.xpNee
 // Winrate objetivo del jugador contra los bots: generoso al principio y más difícil después del nivel 15.
 export function playerTargetWr(level) {
   const m = CFG.matchmaking.playerWr;
+  const early = (m.early ?? []).find(([lvl]) => level <= lvl); // 31/10: la primera hora se gana (Nv 1–2: 80%, Nv 3–4: 72%)
+  if (early) return early[1];
   return Math.max(m.min, m.base - m.perLvl * Math.max(0, level - m.from));
 }
 
