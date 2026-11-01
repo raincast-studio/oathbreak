@@ -100,6 +100,7 @@ export const ITEMS = [
   I('cuervo', 'Cuervo vigilante', 'companero', 'raro', { faction: 'villain', set: 'cripta' }),
   I('bandera_pirata', 'Bandera del saqueo', 'estandarte', 'comun', { faction: 'villain' }),
   // Exclusivos (hitos)
+  I('farol_amistad', 'Farol de la amistad', 'iluminacion', 'raro', { small: true, buyable: false }), // v14: bono de invitación
   I('trofeo_racha', 'Llama de la constancia', 'trofeo', 'epico', { buyable: false }),
   I('trofeo_campeon', 'Trofeo de campeón', 'trofeo', 'epico', { buyable: false }),
   I('marco_honor', 'Marco de honor del escaparate', 'trofeo', 'legendario', { buyable: false }),

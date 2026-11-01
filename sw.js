@@ -1,5 +1,5 @@
 // Service worker mínimo (31/10): permite instalar la app y mostrar avisos. Red primero; si no hay conexión, usa la copia guardada.
-const CACHE = 'oathbreak-v13';
+const CACHE = 'oathbreak-v14';
 self.addEventListener('install', (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', 'index.html', 'manifest.webmanifest']).catch(() => {}))); });
 self.addEventListener('activate', (e) => e.waitUntil((async () => {
   for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);

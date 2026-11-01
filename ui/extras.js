@@ -14,7 +14,7 @@ export function shieldChip(p) {
   const s = p.shield ?? { mode: 'none' };
   if (s.mode === 'full') return h('div.shield-chip.full', icon('shield', 16), h('span', `Escudo de novato: nadie te puede atacar hasta el Nv ${s.untilLevel}`));
   if (s.mode === 'partial') return h('div.shield-chip.partial', icon('shield', 16),
-    h('span', `Escudo parcial: máx ${s.perDay} ${s.perDay === 1 ? 'ataque' : 'ataques'} por día hasta el Nv ${s.untilLevel}`));
+    h('span', `Escudo parcial: hoy te pueden atacar ${s.perDay} ${s.perDay === 1 ? 'vez' : 'veces'} como máximo (sube 1 por nivel hasta el Nv ${s.untilLevel})`));
   return null;
 }
 
@@ -32,6 +32,11 @@ export function nextAction(ctx) {
   const ready = d.ok && d.list.find((o) => o.done && !o.claimed);
   if (ready) return card('star', `Objetivo cumplido: ${ready.name}`, 'Cobrá la recompensa', 'Cobrar',
     (e) => ctx.act(e.currentTarget, (g) => g.claimDaily(ready.id), (r) => `+${num(r.gold)} oro · +${num(r.xp)} XP`), '.hot');
+  // v14: el oro en mano se puede robar y quien no gasta pierde (revisión v13, N11): sugerir equipo o atributos.
+  // Recién después de la primera pelea, o cuando no se puede cazar: la primera acción del juego es pelear.
+  const canHunt = !m && p.energy >= 1;
+  const spend = (p.record.w + p.record.l > 0 || !canHunt) ? spendHint(p, game) : null;
+  if (spend) return card(spend.ico, spend.title, spend.sub, spend.cta, () => go('personaje', { intent: spend.intent }));
   if (!m && p.energy >= 1) {
     const tg = game.targets();
     const free = tg.ok ? tg.list.filter((t) => !t.block) : [];
@@ -47,6 +52,17 @@ export function nextAction(ctx) {
   if (vs && vs.rewarded < vs.rewardedCap) return card('guarida', 'Visitá guaridas mientras esperás', `${vs.rewarded}/${vs.rewardedCap} visitas con premio hoy`, 'Visitar', () => go('social'));
   const wait = p.energy < 1 ? `Recuperás energía en ${clock(p.nextEnergyMs)}` : `Tu misión termina en ${clock(m.msLeft)}`;
   return card('bell', 'Todo al día', wait, notifyState() === 'default' ? 'Avisame' : null, () => askNotify());
+}
+
+// Qué comprar con el oro en mano: primero una pieza de equipo que alcance, si no atributos (si alcanza para 2 puntos).
+export function spendHint(p, game) {
+  const sh = game.shop();
+  const gear = sh.ok ? sh.items.filter((x) => !x.owned && x.req <= p.level && x.price <= p.gold).sort((a, b) => a.price - b.price)[0] : null;
+  if (gear) return { ico: 'equipo', intent: 'equipo', cta: 'Equipar', title: 'Podés comprar equipo nuevo', sub: `Tenés ${num(p.gold)} de oro en mano, y el oro en mano se puede robar.` };
+  const cheapest = Math.min(...Object.values(p.statCosts));
+  if (p.gold >= cheapest * 2) return { ico: 'personaje', intent: 'atributos', cta: 'Mejorar', title: 'Mejorá tus atributos',
+    sub: `Tenés ${num(p.gold)} de oro: alcanza para ${Math.floor(p.gold / cheapest) > 9 ? 'muchos puntos' : `${Math.floor(p.gold / cheapest)} puntos o más`}. Si no lo gastás, te lo pueden robar.` };
+  return null;
 }
 
 /* ---------- "Mientras no estabas" ---------- */
@@ -98,7 +114,7 @@ export function checkEvolution(S) {
       h('h1.display.evo-title', '¡Evolucionaste!'),
       h('div.evo-stage', h('span.evo-rays', { 'aria-hidden': 'true' }),
         h('span.evo-old', sprite(p.faction, '', Math.max(1, levelOfStage(seen)))), h('span.evo-new', sprite(p.faction, '', p.level))),
-      p.shield?.mode === 'partial' ? h('p.note', `Tu escudo de novato empieza a retirarse: hasta el Nv ${p.shield.untilLevel} te pueden atacar como máximo ${p.shield.perDay} ${p.shield.perDay === 1 ? 'vez' : 'veces'} por día. Guardá oro en el banco o la Bóveda.`) : null,
+      p.shield?.mode === 'partial' ? h('p.note', `Tu escudo de novato empieza a retirarse: en este nivel te pueden atacar como máximo ${p.shield.perDay} ${p.shield.perDay === 1 ? 'vez' : 'veces'} por día, y una más por cada nivel, hasta quedar sin escudo en el Nv ${p.shield.untilLevel}. Guardá oro en el banco o la Bóveda.`) : null,
       nextStageHint(p.level),
       h('div.row', h('button.btn.gold.wide', { type: 'button', onclick: () => closeEvo(el) }, 'Continuar'))));
   document.body.append(el);
@@ -123,7 +139,7 @@ export const notifyState = () => (typeof Notification === 'undefined' ? 'unsuppo
 export async function askNotify() {
   if (notifyState() !== 'default') return;
   const r = await Notification.requestPermission().catch(() => 'denied');
-  toast(r === 'granted' ? 'Listo: te avisamos cuando termine tu misión, se llene tu energía o te ataquen.' : 'Sin permiso para avisos. Lo podés activar desde el navegador.', r === 'granted' ? 'ok' : 'err');
+  toast(r === 'granted' ? 'Listo: mientras el juego siga abierto o instalado en segundo plano, te avisamos cuando termine tu misión, se llene tu energía o te ataquen.' : 'Sin permiso para avisos. Lo podés activar desde el navegador.', r === 'granted' ? 'ok' : 'err');
 }
 async function notify(title, body, tag) {
   if (notifyState() !== 'granted' || !document.hidden) return;
@@ -164,24 +180,25 @@ const GAME_URL = 'https://raincast-studio.github.io/oathbreak/';
 export function inviteCard(ctx) {
   const p = ctx.S.player;
   const url = `${GAME_URL}?ref=${myCode()}`;
-  const text = `Jugá OATHBREAK conmigo: ${p.faction === 'hero' ? 'Héroes' : 'Villanos'} contra ${p.faction === 'hero' ? 'Villanos' : 'Héroes'}, al estilo BiteFight. Entrando con este link arrancás con ${CFG.referral.newGold} de oro extra: ${url}`;
+  const text = `Jugá OATHBREAK conmigo: ${p.faction === 'hero' ? 'Héroes' : 'Villanos'} contra ${p.faction === 'hero' ? 'Villanos' : 'Héroes'}, al estilo BiteFight. Entrando con este link arrancás con ${CFG.referral.newGold} de oro extra y un ${CFG.referral.itemName}: ${url}`;
   const share = async () => {
     if (navigator.share) { try { await navigator.share({ title: 'OATHBREAK', text, url }); return; } catch { /* cancelado */ } }
     open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
   return h('section.invite',
     h('span.next-ico', icon('social', 22)),
-    h('div.g-info', h('strong', 'Invitá a tus amigos'), h('span.muted', `Entran con +${CFG.referral.newGold} de oro. Con amigos reales, las visitas, los regalos y las venganzas tienen otro sabor.`)),
+    h('div.g-info', h('strong', 'Invitá a tus amigos'), h('span.muted', `Entran con +${CFG.referral.newGold} de oro y un ${CFG.referral.itemName} exclusivo. Con amigos reales, las visitas, los regalos y las venganzas tienen otro sabor.`)),
     h('div.row.tight',
       h('a.btn.gold.small', { href: `https://wa.me/?text=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener' }, 'WhatsApp'),
       h('button.btn.ghost.small', { type: 'button', onclick: share }, 'Compartir')));
 }
 // Al crear el personaje: si llegó con ?ref=CODIGO, cobra el bono de bienvenida una vez.
-export function claimRef(game) {
+export function claimRef(game, refresh) {
   let code = null;
   try { code = new URLSearchParams(location.search).get('ref'); } catch { /* nada */ }
   if (!code || code === LS.get(REF)) return;
   const r = game.welcomeBonus(code);
-  if (r.ok) toast(`¡Bienvenido! Te invitó un amigo: +${num(r.gold)} oro`, 'prize');
+  if (r.ok) refresh?.();
+  if (r.ok) toast(`¡Bienvenido! Te invitó un amigo: +${num(r.gold)} oro y un ${CFG.referral.itemName}`, 'prize');
   try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* nada */ }
 }

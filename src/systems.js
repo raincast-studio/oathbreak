@@ -323,23 +323,31 @@ export function addPlayer(world, { id, name, faction, now }) {
 // (bajando o subiendo de a un punto) hasta quedar en la banda de winrate objetivo. Antes, los bots de nivel 1
 // eran 5/5/5/5 como el jugador y la primera pelea se ganaba el 37% de las veces.
 export function calibrateBots(world, p) {
+  for (const b of Object.values(world.entities)) if (b.isBot && b.anchor === p.id) calibrateBot(b, p, 60);
+}
+
+// Ajusta un bot de a un punto de atributo hasta que la chance estimada del jugador quede en la banda objetivo y deja
+// la escala de poder en lo calibrado (si no, en su primera hora el bot volvía a subir al poder del jugador: regresión R1
+// de la revisión de la v13, sesión 2 al 34%). Devuelve la última chance medida.
+export function calibrateBot(b, p, maxSteps = 6) {
   const mm = CFG.matchmaking;
-  for (const b of Object.values(world.entities)) {
-    if (!b.isBot || b.anchor !== p.id) continue;
-    const w = ARCHETYPES[b.arch] ?? ARCHETYPES.balanceado;
-    const goal = playerTargetWr(p.level) - (b.skill ?? 0);
-    for (let i = 0; i < 60; i++) {
-      const wc = winChance(p, b);
-      if (wc < goal - mm.band) {
-        const s = CFG.stats.filter((k) => b.stats[k] > 1).sort((x, y) => b.stats[y] / w[y] - b.stats[x] / w[x])[0];
-        if (!s) break;
-        b.stats[s]--;
-      } else if (wc > goal + mm.band) {
-        b.stats[CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0]]++;
-      } else break;
-    }
-    b.hp = maxHp(b);
+  const w = ARCHETYPES[b.arch] ?? ARCHETYPES.balanceado;
+  const goal = playerTargetWr(p.level) - (b.skill ?? 0);
+  let wc = winChance(p, b);
+  for (let i = 0; i < maxSteps; i++) {
+    if (wc < goal - mm.band) {
+      const s = CFG.stats.filter((k) => b.stats[k] > 1).sort((x, y) => b.stats[y] / w[y] - b.stats[x] / w[x])[0];
+      if (!s) break;
+      b.stats[s]--;
+    } else if (wc > goal + mm.band) {
+      b.stats[CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0]]++;
+    } else break;
+    wc = winChance(p, b);
   }
+  b.hp = maxHp(b);
+  const pp = power(p);
+  if (pp > 0) b.scale = Math.max(mm.scaleMin, Math.min(mm.scaleMax, power(b) / pp));
+  return wc;
 }
 
 /* ---------- Facción: marcador semanal (solo reputación ganada en combate esta semana) ---------- */
@@ -450,6 +458,9 @@ function botHour(world, b, now, rng, bots) {
       const s = CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0];
       if (!buyStat(b, s).ok) break;
     }
+    // v14: hasta el Nv 15, después de comprar, un ajuste fino (hasta 3 puntos) para no pasarse de la banda objetivo.
+    // Después del Nv 15 alcanza con la escala (los asserts de 90 días miden esa etapa).
+    if (p && p.level < CFG.matchmaking.playerWr.from) calibrateBot(b, p, 3);
   }
   // Oro en mano acotado (1 h de misión): el botín robado a bots es una fuente del sistema controlada; el resto queda en el banco.
   const cap = Math.round(missionReward(CFG.bots.handGoldMissionMin, b.level).gold * (b.wealth ?? 1));

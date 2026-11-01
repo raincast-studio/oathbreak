@@ -134,7 +134,8 @@ export const CFG = {
   // 31/10: evento de fin de semana (sábado y domingo, ART): más XP por ganar en la Arena y Gloria doble por victoria.
   events: { weekend: { name: 'Fin de semana de caza', days: [6, 0], xpWinMult: 1.25, gloryWinMult: 2 } },
   // 31/10: invitar amigos. El invitado recibe oro al crear su personaje; el premio del que invita llega con el servidor (E6).
-  referral: { newGold: 300 },
+  // v14: +100 de oro y un objeto exclusivo (antes +300; sin servidor no se puede validar el código, así que vale poco).
+  referral: { newGold: 100, item: 'farol_amistad', itemName: 'Farol de la amistad', codeRe: '^[A-HJ-NP-Z2-9]{6}$' },
 
   faction: { minWins: 5, renown: 20 }, // premio semanal a la facción ganadora (miembros con ≥ 5 victorias)
 

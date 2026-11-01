@@ -311,7 +311,7 @@ function start(tab) {
   go(S.tab);
   const note = cloud.takeNotice();
   if (note) toast(note, 'prize');
-  claimRef(game);
+  claimRef(game, refresh);
   awaySummary({ S, game, go });
   registerPwa();
   // "Mientras no estabas": se mide desde la última vez que la app estuvo visible.

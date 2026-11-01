@@ -74,7 +74,43 @@ test('invitación: el bono de bienvenida se cobra una vez y valida el código', 
   const { g } = newGame();
   const g0 = g.state().player.gold;
   assert.equal(g.welcomeBonus('x!').error, 'codigo_invalido');
-  assert.ok(g.welcomeBonus('ABC123').ok);
+  assert.equal(g.welcomeBonus('AAAA').error, 'codigo_invalido'); // v14: mismo formato que las invitaciones (6 caracteres)
+  assert.ok(g.welcomeBonus('abc234').ok);
   assert.equal(g.state().player.gold, g0 + CFG.referral.newGold);
-  assert.equal(g.welcomeBonus('ABC123').error, 'ya_cobrado');
+  assert.ok(g.lair().inventory.some((x) => x.id === CFG.referral.item));
+  assert.equal(g.welcomeBonus('ABC234').error, 'ya_cobrado');
+});
+
+test('invitación: un personaje de más de un día o sin fecha de creación (guardado viejo) no cobra el bono', () => {
+  const { g, w, clock } = newGame();
+  clock.advance(2 * DAY);
+  assert.equal(g.welcomeBonus('ABC234').error, 'fuera_de_plazo');
+  delete w.entities.p0.createdAt;
+  assert.equal(g.welcomeBonus('ABC234').error, 'fuera_de_plazo');
+});
+
+test('v14: la calibración dura más allá de la primera sesión (sesiones 2 a 4)', () => {
+  const H = HOUR, n = 24;
+  const res = [[0, 0], [0, 0], [0, 0], [0, 0]];
+  for (let s = 1; s <= n; s++) {
+    const clock = createClock(() => MON + 12 * H);
+    const g = createGame({ storage: memoryStorage(), clock, seed: s, autosave: false });
+    g.newCharacter('Tester', s % 2 ? 'hero' : 'villain');
+    for (let ses = 0; ses < 4; ses++) {
+      if (g.state().player.mission) g.claimMission();
+      for (let i = 0; i < 12; i++) {
+        const L = g.targets().list.filter((t) => !t.block); if (!L.length) break;
+        const r = g.attack((L.find((x) => x.prey) ?? L[0]).id); if (!r.ok) break;
+        res[ses][0] += r.report.winner === 'attacker'; res[ses][1]++;
+      }
+      for (const o of g.daily().list) g.claimDaily(o.id);
+      g.autoSpend({ fue: 1, def: 1, agi: 1, res: 1 });
+      const c = g.contracts().list.find((k) => k.min === 240); if (c) g.startMission(c.id);
+      clock.advance(4 * H); g.state();
+    }
+  }
+  const wr = res.map(([w, t]) => w / t);
+  for (const i of [1, 2, 3]) assert.ok(wr[i] >= 0.55, `sesión ${i + 1}: ${wr[i].toFixed(2)}`);
+  const mid = (wr[1] + wr[2] + wr[3]) / 3;
+  assert.ok(mid >= 0.62, `promedio sesiones 2–4: ${mid.toFixed(2)}`);
 });

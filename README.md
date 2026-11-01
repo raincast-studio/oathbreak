@@ -92,4 +92,11 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 - **Escudo de novato:** visible en Inicio; se retira de a poco (Nv 5/6/7: máx 1/2/3 ataques recibidos por día). La venganza ignora el tope diario.
 - **Interfaz:** "Próximo paso" y Primeros pasos arriba en Inicio; "Mientras no estabas" al volver (≥ 30 min); ceremonia "¡Evolucionaste!"; golpes animados en "Cazando…"; textos ≥ 11 px (10 px en fichas a ≤ 380 px) y botones de 44 px; Arena con disponibles primero; "Aceptar todas" en solicitudes; avisos abajo; depósito validado.
 - **PWA:** `manifest.webmanifest`, `sw.js` e íconos; avisos de misión, energía llena y ataques mientras la app sigue viva en segundo plano (el push con la app cerrada necesita el servidor, E6).
-- **Crecimiento:** invitar por WhatsApp/compartir con `?ref=CODIGO` (+300 de oro al invitado; el premio del que invita llega con E6). Evento "Fin de semana de caza" (sábado y domingo: +25% XP por ganar, Gloria ×2). Pase: 160 de Gloria por escalón.
+- **Crecimiento:** invitar por WhatsApp/compartir con `?ref=CODIGO` (+300 de oro al invitado en v13, +100 y un objeto exclusivo desde v14; el premio del que invita llega con E6). Evento "Fin de semana de caza" (sábado y domingo: +25% XP por ganar, Gloria ×2). Pase: 160 de Gloria por escalón.
+
+## v14 (01/11): acciones 1–4 de la revisión de la v13
+- **Calibración que dura (R1):** `calibrateBot` deja la escala de poder del bot en lo calibrado y, hasta el Nv 15, hace un ajuste fino después de cada compra del bot. Winrate por sesión de 12 ataques (80 semillas, gastando en atributos, misión de 4 h): 79% / 68% / 72% / 63% / 66% (v13: 79% / 34% / 51%). Test nuevo de las sesiones 2–4.
+- **Próximo paso que empuja a gastar (N11):** después de la primera pelea, sugiere equipo si alcanza o atributos si alcanza para 2 puntos ("el oro en mano se puede robar"). Sin botón "Distribuir" (decisión del dueño del 20/10).
+- **Bono de bienvenida seguro (R2):** +100 de oro y el Farol de la amistad (exclusivo). Código con el mismo formato que las invitaciones, solo personajes de menos de 1 día y con fecha de creación, una vez.
+- **Textos honestos:** escudo gradual (1 vez hoy, +1 por nivel hasta quedar sin escudo en el Nv 8), triángulo ("ninguna combinación le gana a todas"; el triángulo no se cumple en todas las etapas), avisos (solo con el juego abierto o instalado en segundo plano).
+- Test de 90 días: tope de winrate semanal del activo 0,60 → 0,62 (igual que el casual; ruido de ±2,7 pp).

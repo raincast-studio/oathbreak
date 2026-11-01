@@ -6,7 +6,7 @@ import * as C from './character.js';
 import * as S from './systems.js';
 import * as Lr from './lair.js';
 import * as O from './objectives.js';
-import { energyMax } from './effects.js';
+import { energyMax, grantItem } from './effects.js';
 import { ITEM } from './catalog.js';
 import { migrate } from './migrate.js';
 import { hasKey, isInt, isPosInt } from './economy.js';
@@ -128,14 +128,17 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
 
     // 31/10: bono de bienvenida por invitación (una sola vez, solo el primer día del personaje).
     welcomeBonus: (code) => command((p, now) => {
-      code = String(code ?? '').trim();
-      if (!/^[A-Za-z0-9]{4,16}$/.test(code)) return err('codigo_invalido');
+      code = String(code ?? '').trim().toUpperCase();
+      // v14: mismo formato que generan las invitaciones (6 caracteres sin 0/O/1/I), solo personajes de menos de 1 día
+      // (los guardados previos a la v13 no tienen fecha de creación: no cobran) y una sola vez.
+      if (!new RegExp(CFG.referral.codeRe).test(code)) return err('codigo_invalido');
       if (p.referral) return err('ya_cobrado');
-      if (now - (p.createdAt ?? now) > DAY) return err('fuera_de_plazo');
+      if (!Number.isFinite(p.createdAt) || now - p.createdAt > DAY) return err('fuera_de_plazo');
       p.referral = { code, ts: now };
       p.gold += CFG.referral.newGold;
+      grantItem(p, CFG.referral.item);
       track(world, p, 'referral', { code }, now);
-      return { ok: true, gold: CFG.referral.newGold };
+      return { ok: true, gold: CFG.referral.newGold, item: CFG.referral.item };
     }),
 
     // Personaje

@@ -12,7 +12,7 @@ function notifyCard(ctx) {
     h('h2.display', 'Avisos'),
     h('p.muted', st === 'granted' ? 'Activados: te avisamos cuando termine tu misión, se llene tu energía o te ataquen (con el juego abierto o instalado en segundo plano).'
       : st === 'denied' ? 'Bloqueados en este navegador. Activalos desde la configuración del sitio.'
-      : st === 'unsupported' ? 'Este navegador no permite avisos.' : 'Te avisamos cuando termine tu misión, se llene tu energía o te ataquen.'),
+      : st === 'unsupported' ? 'Este navegador no permite avisos.' : 'Te avisamos cuando termine tu misión, se llene tu energía o te ataquen, mientras el juego siga abierto o instalado en segundo plano.'),
     st === 'default' ? h('button.btn.gold', { type: 'button', onclick: async () => { await askNotify(); ctx.refresh(); } }, 'Activar avisos') : null,
     h('p.muted.hint', 'Tip: instalá el juego desde el menú del navegador ("Agregar a la pantalla de inicio") para abrirlo como una app.'));
 }
@@ -57,7 +57,7 @@ function statsView(ctx) {
   });
   return h('section.card',
     h('div.sec-head', h('h2.display', 'Atributos'), h('span.muted.tnum', h('span', icon('coin', 14), ` ${num(p.gold)}`))),
-    h('p.muted.hint', 'Repartilos a tu gusto. Cada punto encarece a todos por igual. Fuerza gana a Defensa, Defensa a Agilidad y Agilidad a Fuerza: ninguna build le gana a todas.'),
+    h('p.muted.hint', 'Repartilos a tu gusto. Cada punto encarece a todos por igual. Ninguna combinación le gana a todas: probá, mirá tus informes y ajustá.'),
     h('ul.stat-list', rows));
 }
 
