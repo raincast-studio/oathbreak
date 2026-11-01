@@ -64,12 +64,20 @@ export function showOnboarding(game, onDone) {
 
 /* ---------- Primeros pasos (estado de tutorial: solo de esta interfaz, en este navegador) ---------- */
 const KEY = 'oathbreak.tutorial';
-const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) ?? {}; } catch { return {}; } };
-const save = (t) => { try { localStorage.setItem(KEY, JSON.stringify(t)); } catch { /* sin almacenamiento: se recalcula */ } };
+// v15: el estado vive en la partida (viaja con la nube); si hay uno viejo en este navegador, se migra una vez.
+const local = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } };
+const load = (game) => {
+  const u = game.uiState();
+  if (u.ok && u.ui.tutorial) return u.ui.tutorial;
+  const old = local();
+  if (old) { game.setUi('tutorial', old); try { localStorage.removeItem(KEY); } catch { /* nada */ } }
+  return old ?? {};
+};
+const save = (game, t) => game.setUi('tutorial', t);
 export const resetTutorial = () => { try { localStorage.removeItem(KEY); } catch { /* nada */ } };
 
 export function firstSteps(ctx) {
-  const t = load();
+  const t = load(ctx.game);
   if (t.closed) return null;
   const p = ctx.S.player;
   const lr = ctx.game.lair();
@@ -82,7 +90,7 @@ export function firstSteps(ctx) {
   };
   let changed = false;
   for (const [k, v] of Object.entries(seen)) if (v && !t[k]) { t[k] = true; changed = true; }
-  if (changed) save(t);
+  if (changed) save(ctx.game, t);
 
   const steps = [
     ['hunt', 'Ganá tu primera pelea', 'En la Arena, elegí un rival de tu nivel o menor.', 'arena'],
@@ -95,7 +103,7 @@ export function firstSteps(ctx) {
   return h('section.card.first-steps',
     h('div.sec-head', h('h2.display', all ? '¡Ya sabés jugar!' : 'Primeros pasos'), h('span.muted.tnum', `${done}/${steps.length}`)),
     all ? h('p', 'Volvé cada día: misiones largas mientras no estás, objetivos del día y la presa ★.') : null,
-    all ? h('button.btn.gold.wide', { type: 'button', onclick: () => { save({ ...t, closed: true }); ctx.refresh(); } }, 'Cerrar') :
+    all ? h('button.btn.gold.wide', { type: 'button', onclick: () => { save(ctx.game, { ...t, closed: true }); ctx.refresh(); } }, 'Cerrar') :
       h('ol.steps', steps.map(([k, name, desc, tab]) => h(`li.step${t[k] ? '.done' : ''}`,
         h('span.step-mark', { 'aria-hidden': 'true' }, t[k] ? '✓' : ''),
         h('div.g-info', h('strong', name), h('span.muted', desc)),

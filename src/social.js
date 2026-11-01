@@ -88,7 +88,8 @@ export function botFriendship(world, b, p, now, rng) {
   }
   const already = (b.friends ?? []).includes(p.id) || reqs(b).out.some((r) => r.id === p.id) || reqs(p).out.some((r) => r.id === b.id);
   const visited = p.lair.guestbook.some((g) => g.id === b.id);
-  if (!already && !full(p) && rng() < G().botRequestChancePerHour * (visited ? 3 : 1)) {
+  // v15: tope de solicitudes de bots pendientes (antes se juntaban 25 en 3 días).
+  if (!already && !full(p) && pendingIn(p, now).length < (G().maxBotRequestsPending ?? Infinity) && rng() < G().botRequestChancePerHour * (visited ? 3 : 1)) {
     reqs(b).out.push({ id: p.id, ts: now });
     reqs(p).in.push({ id: b.id, name: b.name, faction: b.faction, level: b.level, ts: now });
   }

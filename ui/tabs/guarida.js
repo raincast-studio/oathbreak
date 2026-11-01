@@ -1,7 +1,7 @@
 // Pestaña Guarida: sala con grilla (colocar, arrastrar, rotar, apilar), edificios + Taller y tiendas.
 import { CFG, ITEM } from '../../src/game.js';
 import { h, icon, num, toast, openSheet, closeSheet } from '../kit.js';
-import { renderRoom, footprint, cellAt, initials, rarityName, CAT, W, H } from '../room.js';
+import { renderRoom, footprint, cellAt, swatch, rarityName, CAT, W, H } from '../room.js';
 export const title = 'Guarida';
 
 // Estado de la interfaz (no del juego): sub-pestaña, sala visible y modo de edición.
@@ -179,7 +179,7 @@ function inventoryView(ctx, lr) {
           UI.mode = { uid: i.uid, id: i.id, rot: 0 }; UI.selected = null; ctx.refresh();
           scrollTo({ top: 0, behavior: 'smooth' });
         } },
-        h(`span.swatch.cat-${def.cat}.r-${def.rarity}`, initials(def.name)),
+        swatch(i.id, def),
         h('span.inv-txt', h('strong', def.name), h('span.muted', surface ? `${CAT[def.cat]} · toda la sala` : `${w}×${hh}${def.small ? ' · apilable' : ''}${def.surface ? ' · superficie' : ''}`))),
       h('button.icon-btn.more', { type: 'button', 'aria-label': `Más opciones de ${def.name}`, onclick: () => itemSheet(ctx, i) }, '⋯'));
   };
@@ -240,7 +240,7 @@ function buildingsView(ctx, lr) {
 function shopView(ctx) {
   const { game, S } = ctx;
   const row = (it, price, btnLabel, onBuy, disabled) => h('li.shop-item',
-    h(`span.swatch.cat-${it.cat}.r-${it.rarity}`, initials(it.name)),
+    swatch(it.id),
     h('span.inv-txt',
       h('strong', it.name, it.rotating ? h('span.tag', 'Hoy') : null),
       h('span.muted', `${CAT[it.cat]} · ${rarityName(it.rarity)} · +${it.prestige} prestigio`)),

@@ -9,6 +9,7 @@ import { missionDrop, pvpMilestone, furnishBot, visit as lairVisit, syncWorkshop
 import { bump } from './objectives.js';
 import { track } from './telemetry.js';
 import { addGlory } from './season.js';
+import { weekendEvent } from './events.js';
 import { sendGift, botFriendship } from './social.js';
 
 export { missionReward };
@@ -122,12 +123,23 @@ export function attackBlock(a, d, now, { ignoreEnergy = false, duel = false } = 
 
 // Probabilidad estimada de que `a` (atacando) le gane a `d`: N peleas con semillas fijas derivadas de los ids.
 // Pura y reproducible; refleja el triángulo de builds, cosa que un "poder" lineal no puede (R² ≈ 0.3).
+// v15: memo por (ids, atributos efectivos y vida): al volver tras días afuera, la mayoría de las horas repiten el par.
+const WC = new Map();
 export function winChance(a, d, n = CFG.matchmaking.samples) {
   const A = snap(a), D = snap(d, true);
+  const key = `${a.id}|${d.id}|${n}|${Object.values(A.stats).join(',')}|${A.hp}|${Object.values(D.stats).join(',')}|${D.hp}`;
+  const hit = WC.get(key);
+  if (hit !== undefined) return hit;
+  const v = winChanceRaw(a, d, A, D, n);
+  if (WC.size > 4000) WC.clear();
+  WC.set(key, v);
+  return v;
+}
+function winChanceRaw(a, d, A, D, n) {
   let h = 2166136261;
   for (const ch of `${a.id}|${d.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
   let w = 0;
-  for (let i = 0; i < n; i++) if (resolveCombat(A, D, (h + Math.imul(i + 1, 0x9e3779b1)) >>> 0).winner === 'A') w++;
+  for (let i = 0; i < n; i++) if (resolveCombat(A, D, (h + Math.imul(i + 1, 0x9e3779b1)) >>> 0, CFG.combat, false).winner === 'A') w++;
   return w / n;
 }
 
@@ -154,13 +166,7 @@ function snap(e, defending = false) {
   if (defending && towerPct(e)) for (const k of ['def', 'agi']) stats[k] = Math.round(stats[k] * (1 + towerPct(e)));
   return { stats, hp: maxHp(e), maxHp: maxHp(e) }; // cada combate arranca con vida completa
 }
-// Evento de fin de semana activo (o null). Día de la semana en ART: 0 = domingo … 6 = sábado.
-export function weekendEvent(now) {
-  const ev = CFG.events?.weekend;
-  if (!ev) return null;
-  const wd = new Date(now + CFG.dayOffsetMs).getUTCDay();
-  return ev.days.includes(wd) ? ev : null;
-}
+export { weekendEvent } from './events.js';
 
 // Oro robable: lo que la Bóveda no protege.
 export const lootable = (e) => Math.floor(e.gold * (1 - vaultPct(e)));
@@ -221,16 +227,16 @@ export function pvp(world, att, def, now, opts = {}) {
   // Atacante gana: roba 10% del oro no protegido. Defensor gana: recompensa del sistema; el atacante no pierde oro.
   let loot = 0, bounty = 0, bountyReason = null;
   let winGold = 0;
+  const ev = weekendEvent(now);
   if (win === att) {
     loot = Math.floor(lootable(def) * CFG.pvp.lootPct); def.gold -= loot; att.gold += loot;
     // Bono de victoria creado por el sistema (no sale del rival): premia cazar por sobre las misiones.
-    if (!opts.duel && CFG.pvp.winGoldMissionMin) { winGold = Math.round(missionReward(CFG.pvp.winGoldMissionMin, def.level).gold * risk); att.gold += winGold; }
+    if (!opts.duel && CFG.pvp.winGoldMissionMin) { winGold = Math.round(missionReward(CFG.pvp.winGoldMissionMin, def.level).gold * risk * (ev?.winGoldMult ?? 1)); att.gold += winGold; }
   }
   else { const b = defenseBounty(att, def, now); bounty = b.gold; bountyReason = b.reason; def.gold += bounty; }
   if (!opts.duel) { att.recent = [...(att.recent ?? []), win === att].slice(-CFG.pvp.defenseBounty.recentWindow); }
 
-  const ev = weekendEvent(now);
-  const xpWin = Math.round(pvpXp(lose.level) * (win === att ? risk : 1) * (ev ? ev.xpWinMult : 1));
+  const xpWin = Math.round(pvpXp(lose.level) * (win === att ? risk : 1) * (ev?.xpWinMult ?? 1));
   const xpLose = Math.max(1, Math.round(xpWin * CFG.pvp.xpLosePct));
   const lvlWin = addXp(win, xpWin);
   const lvlLose = addXp(lose, xpLose);
@@ -241,8 +247,8 @@ export function pvp(world, att, def, now, opts = {}) {
   let prey = null;
   if (!opts.duel) {
     bump(world, att, 'hunt', now);
-    if (win === att) { bump(world, att, 'win', now); addGlory(att, 'win', now, ev ? ev.gloryWinMult : 1); }
-    if (win === def) addGlory(def, 'win', now, ev ? ev.gloryWinMult : 1);
+    if (win === att) { bump(world, att, 'win', now); addGlory(att, 'win', now); }
+    if (win === def) addGlory(def, 'win', now);
     // Presa del día: doble XP y bono de oro la primera vez que la derrotás.
     if (win === att && !att.isBot && att.preyDone !== dayKey(now) && preyOf(world, att, now) === def.id) {
       att.preyDone = dayKey(now);
@@ -424,15 +430,17 @@ export function createBots(world, now) {
 }
 
 // Destino de una visita de bot: ponderado por prestigio (las guaridas lindas atraen más visitas).
-function pickVisitTarget(world, b, rng) {
-  const pool = Object.values(world.entities).filter((e) => e.id !== b.id);
-  const w = pool.map((e) => 1 + prestige(e).total / 20);
+function pickVisitTarget(world, b, rng, weights) {
+  // v15: los pesos se calculan una vez por hora (antes, por cada visita de cada bot).
+  const all = weights ?? Object.values(world.entities).map((e) => [e, 1 + prestige(e).total / 20]);
+  const pairs = all.filter(([e]) => e.id !== b.id);
+  const pool = pairs.map(([e]) => e), w = pairs.map(([, x]) => x);
   let r = rng() * w.reduce((a, x) => a + x, 0);
   return pool[w.findIndex((x) => (r -= x) < 0)] ?? pool[0];
 }
 
 // Una hora simulada de un bot: ingresos, gasto, duelos entre bots, ataques y visitas.
-function botHour(world, b, now, rng, bots) {
+function botHour(world, b, now, rng, bots, weights) {
   sync(b, now);
   const p = world.entities[b.anchor]; // jugador al que orbita este bot
   const r = missionReward(60, b.level);
@@ -478,7 +486,7 @@ function botHour(world, b, now, rng, bots) {
     if (!sent && (owes || rng() < CFG.social.botGiftChancePerHour)) sendGift(world, b, p, now);
   }
   if (p) botFriendship(world, b, p, now, rng);
-  if (rng() < CFG.bots.visitChancePerHour) lairVisit(world, b, pickVisitTarget(world, b, rng), now, { applaud: rng() < 0.7 });
+  if (rng() < CFG.bots.visitChancePerHour) lairVisit(world, b, pickVisitTarget(world, b, rng, weights), now, { applaud: rng() < 0.7 });
   if (rng() < 0.05) furnishBot(b, rng);
 }
 
@@ -493,7 +501,8 @@ export function tickBots(world, now) {
   for (let h = from; h <= last; h++) {
     settleShowcase(world, h * HOUR);
     const rng = mulberry32((world.seed ^ Math.imul(h, 0x85ebca6b)) >>> 0);
-    for (const b of bots) botHour(world, b, h * HOUR, rng, bots);
+    const weights = Object.values(world.entities).map((e) => [e, 1 + prestige(e).total / 20]);
+    for (const b of bots) botHour(world, b, h * HOUR, rng, bots, weights);
   }
   world.botHour = last;
   return last - from + 1;

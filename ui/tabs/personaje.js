@@ -3,7 +3,7 @@ import { CFG, ITEM } from '../../src/game.js';
 import { h, icon, num, clock, toast, openSheet, closeSheet, avatar } from '../kit.js';
 import { segmented } from './guarida.js';
 import { accountCard } from '../account.js';
-import { notifyState, askNotify } from '../extras.js';
+import { notifyState, askNotify, installState, installButton } from '../extras.js';
 
 // 31/10: avisos (misión terminada, energía llena, te atacaron) e instalación como app.
 function notifyCard(ctx) {
@@ -14,7 +14,8 @@ function notifyCard(ctx) {
       : st === 'denied' ? 'Bloqueados en este navegador. Activalos desde la configuración del sitio.'
       : st === 'unsupported' ? 'Este navegador no permite avisos.' : 'Te avisamos cuando termine tu misión, se llene tu energía o te ataquen, mientras el juego siga abierto o instalado en segundo plano.'),
     st === 'default' ? h('button.btn.gold', { type: 'button', onclick: async () => { await askNotify(); ctx.refresh(); } }, 'Activar avisos') : null,
-    h('p.muted.hint', 'Tip: instalá el juego desde el menú del navegador ("Agregar a la pantalla de inicio") para abrirlo como una app.'));
+    installState() === 'installed' ? h('p.muted.hint', 'Instalado como app en este dispositivo.')
+      : h('div.row', installButton('.btn.ghost'), h('span.muted.hint', 'Se abre como una app y los avisos funcionan mejor.')));
 }
 export const title = 'Personaje';
 
@@ -142,6 +143,7 @@ function rewardText(r) {
   if (r.type === 'gold') return { ico: 'coin', txt: num(r.amount), cls: 'gold' };
   if (r.type === 'xp') return { ico: 'star', txt: `${num(r.amount)} XP`, cls: 'xp' };
   if (r.type === 'renown') return { ico: 'crown', txt: `${num(r.amount)}`, cls: 'renown' };
+  if (r.type === 'chest') return { ico: 'star', txt: `Cofre: ${num(r.gold)} oro`, cls: 'gold' };
   return { ico: 'guarida', txt: ITEM[r.id].name, cls: 'item' };
 }
 
@@ -163,7 +165,7 @@ function seasonView(ctx) {
       h('div.season-prog',
         h('strong.display.tnum', `${s.reached}/${s.tiers}`),
         h('div.g-info', h('div.m-track', h('span', { style: { transform: `scaleX(${s.reached >= s.tiers ? 1 : into / s.gloryPerTier})` } })),
-          h('span.muted.tnum', s.reached >= s.tiers ? 'Pase completo' : `${num(into)} / ${num(s.gloryPerTier)} de Gloria para el escalón ${s.reached + 1}`))),
+          h('span.muted.tnum', s.reached >= s.tiers ? `Pase completo · cofres extra ${s.extraReached}/${s.extraTiers} (uno cada ${num(s.gloryPerExtra)} de Gloria)` : `${num(into)} / ${num(s.gloryPerTier)} de Gloria para el escalón ${s.reached + 1}`))),
       claimable ? h('p.note', `Tenés ${claimable} ${claimable > 1 ? 'escalones' : 'escalón'} para cobrar.`) : null,
       h('div.tier-grid', tiles)),
     h('section.card',

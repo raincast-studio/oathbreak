@@ -92,16 +92,23 @@ export function clock(ms) {
 export const uid = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`);
 
 // Count-up: anima el número desde el valor mostrado hasta el nuevo (sin animación si reduced-motion).
-export function countUp(el, to) {
+// v15: cifras compactas para las fichas de la barra superior (12.400 → 12,4k; 250.000 → 250k), así no se cortan.
+export const compact = (n) => {
+  n = Math.round(n);
+  if (Math.abs(n) < 10_000) return num(n);
+  const k = n / 1000;
+  return `${Math.abs(k) < 100 ? k.toFixed(1).replace('.', ',').replace(',0', '') : num(k)}k`;
+};
+export function countUp(el, to, fmt = num) {
   const from = Number(el.dataset.v ?? to);
   el.dataset.v = to;
   cancelAnimationFrame(el._raf);
-  if (from === to || reduced()) { el.textContent = num(to); return; }
+  if (from === to || reduced()) { el.textContent = fmt(to); return; }
   el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
   const t0 = performance.now(), dur = Math.min(900, 300 + Math.abs(to - from) * 2);
   const step = (t) => {
     const k = Math.min(1, (t - t0) / dur), e = 1 - (1 - k) ** 3;
-    el.textContent = num(from + (to - from) * e);
+    el.textContent = fmt(from + (to - from) * e);
     if (k < 1) el._raf = requestAnimationFrame(step);
   };
   el._raf = requestAnimationFrame(step);

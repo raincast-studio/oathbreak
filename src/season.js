@@ -26,8 +26,12 @@ export function addGlory(e, kind, now, n = 1) {
   return g;
 }
 
+// Cofres extra alcanzados: uno cada gloryPerExtra de Gloria después de completar los 30 escalones.
+const extraReached = (glory) => Math.max(0, Math.min(SZ().extraTiers ?? 0, Math.floor((glory - SZ().tiers * SZ().gloryPerTier) / (SZ().gloryPerExtra ?? Infinity))));
+
 // Recompensa del escalón t (1..tiers): oro, renombre o un cosmético exclusivo en los hitos.
 export function tierReward(t, level) {
+  if (t > SZ().tiers) return { type: 'chest', gold: missionReward(SZ().goldMissionMin, level).gold, renown: SZ().renownPerTier }; // cofre extra
   if (SZ().cosmetics[t]) return { type: 'item', id: SZ().cosmetics[t] };
   if (t % 3 === 0) return { type: 'renown', amount: SZ().renownPerTier };
   if (t % 3 === 1) return { type: 'gold', amount: missionReward(SZ().goldMissionMin, level).gold };
@@ -38,22 +42,29 @@ export function seasonStatus(e, now) {
   const k = seasonKey(now);
   const s = e.season?.key === k ? e.season : { key: k, glory: 0, claimed: [] };
   const reached = Math.min(SZ().tiers, Math.floor(s.glory / SZ().gloryPerTier));
+  const extra = extraReached(s.glory);
   return {
     key: k, endsAt: seasonEnds(now), glory: s.glory, gloryPerTier: SZ().gloryPerTier, reached, tiers: SZ().tiers,
-    list: Array.from({ length: SZ().tiers }, (_, i) => ({ tier: i + 1, reward: tierReward(i + 1, e.level), unlocked: i + 1 <= reached, claimed: s.claimed.includes(i + 1) })),
+    extraReached: extra, extraTiers: SZ().extraTiers ?? 0, gloryPerExtra: SZ().gloryPerExtra,
+    list: Array.from({ length: SZ().tiers + (reached >= SZ().tiers ? SZ().extraTiers ?? 0 : 0) }, (_, i) => {
+      const t = i + 1, extraT = t > SZ().tiers;
+      return { tier: t, extra: extraT, reward: tierReward(t, e.level), unlocked: extraT ? t - SZ().tiers <= extra : t <= reached, claimed: s.claimed.includes(t) };
+    }),
   };
 }
 
 export function claimTier(e, tier, now) {
-  if (!Number.isInteger(tier) || tier < 1 || tier > SZ().tiers) return { ok: false, error: 'escalon_invalido' };
+  if (!Number.isInteger(tier) || tier < 1 || tier > SZ().tiers + (SZ().extraTiers ?? 0)) return { ok: false, error: 'escalon_invalido' };
   const s = ensure(e, now);
-  if (Math.floor(s.glory / SZ().gloryPerTier) < tier) return { ok: false, error: 'escalon_bloqueado' };
+  const open = tier > SZ().tiers ? tier - SZ().tiers <= extraReached(s.glory) : Math.floor(s.glory / SZ().gloryPerTier) >= tier;
+  if (!open) return { ok: false, error: 'escalon_bloqueado' };
   if (s.claimed.includes(tier)) return { ok: false, error: 'ya_cobrado' };
   s.claimed.push(tier);
   const r = tierReward(tier, e.level);
   if (r.type === 'gold') e.gold += r.amount;
   else if (r.type === 'xp') addXp(e, r.amount);
   else if (r.type === 'renown') e.lair.renown += r.amount;
+  else if (r.type === 'chest') { e.gold += r.gold; e.lair.renown += r.renown; }
   else grantItem(e, r.id);
   return { ok: true, reward: r };
 }

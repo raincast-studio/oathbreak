@@ -23,11 +23,12 @@ export const baseDamage = (fue, def, cfg = CFG.combat) => {
 };
 
 // A / D: { stats:{fue,def,agi,res}, hp, maxHp }
-export function resolveCombat(A, D, seed, cfg = CFG.combat) {
+// log=false (v15): no arma el detalle por rondas; lo usa winChance, que simula miles de peleas (~3× más rápido).
+export function resolveCombat(A, D, seed, cfg = CFG.combat, log = true) {
   const rng = mulberry32(seed);
   const side = { A: { ...A, hp: A.hp, dealt: 0 }, D: { ...D, hp: D.hp, dealt: 0 } };
   const rounds = [];
-  const push = (r, actor, o) => rounds.push({ r, actor, dmg: 0, crit: false, dodge: false, ...o, hpA: Math.max(0, Math.round(side.A.hp)), hpD: Math.max(0, Math.round(side.D.hp)) });
+  const push = (r, actor, o) => log && rounds.push({ r, actor, dmg: 0, crit: false, dodge: false, ...o, hpA: Math.max(0, Math.round(side.A.hp)), hpD: Math.max(0, Math.round(side.D.hp)) });
 
   const strike = (me, foe, mult) => {
     const crit = rng() < critChance(me.stats.agi, foe.stats.agi, cfg);

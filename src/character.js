@@ -31,7 +31,7 @@ export const tierBonus = (t, stat) => (stat === '*' ? Math.max(1, Math.floor(t.b
 export function gearBonus(e, stat) {
   let b = 0;
   for (const [slot, tier] of Object.entries(e.gear)) {
-    const t = CFG.gear.tiers.find((x) => x.tier === tier);
+    const t = CFG.gear.tiers[tier - 1]?.tier === tier ? CFG.gear.tiers[tier - 1] : CFG.gear.tiers.find((x) => x.tier === tier);
     const target = gearStatOf(e, slot);
     if (target === stat || target === '*') b += tierBonus(t, target);
   }
@@ -83,7 +83,9 @@ export function statMul(total, s) {
   const t = Math.min(1, Math.max(0, (total - a) / Math.max(1, b - a)));
   return E[s] + (CFG.statCostMul[s] - E[s]) * t;
 }
-export const statCost = (e, s) => Math.round(CFG.statCost(totalPoints(e)) * statMul(totalPoints(e), s));
+const rawCost = (t, s) => Math.round(CFG.statCost(t) * statMul(t, s));
+// v15: nunca más barato que el punto anterior (en la mezcla, Def y Res bajaban de 75 a 74 al pasar de 27 a 28 puntos).
+export const statCost = (e, s) => { const t = totalPoints(e); return Math.max(rawCost(t, s), rawCost(t - 1, s)); };
 
 export function buyStat(e, s) {
   if (!CFG.stats.includes(s)) return { ok: false, error: 'stat_invalido' };

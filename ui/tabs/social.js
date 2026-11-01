@@ -1,7 +1,7 @@
 // Pestaña Social: visitas (con vista de la guarida ajena), amigos y regalos, libro de visitas, escaparate y facciones.
 import { CFG, ITEM } from '../../src/game.js';
 import { h, icon, num, toast, openSheet, closeSheet, avatar } from '../kit.js';
-import { renderRoom } from '../room.js';
+import { renderRoom, swatch } from '../room.js';
 import { segmented } from './guarida.js';
 import { inviteCard } from '../extras.js';
 export const title = 'Social';
@@ -14,7 +14,6 @@ export function render(ctx) {
   const subs = [['visitar', 'Visitar'], ['amigos', 'Amigos'], ['escaparate', 'Escaparate'], ['facciones', 'Facciones']];
   return h('section.stack',
     h('h1.display', 'Social'),
-    inviteCard(ctx),
     segmented(subs, UI.sub, (k) => { UI.sub = k; ctx.refresh(); }),
     UI.sub === 'visitar' ? visitView(ctx) : UI.sub === 'amigos' ? friendsView(ctx) : UI.sub === 'escaparate' ? showcaseView(ctx) : factionView(ctx));
 }
@@ -122,11 +121,15 @@ function friendsView(ctx) {
   const box = fr.giftbox;
   const reqCard = fr.requests.length ? h('section.card.requests',
     h('div.sec-head', h('h2.display', 'Solicitudes'), h('span.pill.violet', `${fr.requests.length}`)),
-    fr.requests.length > 1 ? h('button.btn.gold.small', { type: 'button', onclick: () => { // 31/10: aceptar todas de una vez
+    fr.requests.length > 1 ? h('div.row.tight', h('button.btn.ghost.small', { type: 'button', onclick: () => { // v15: rechazar todas
+      let n = 0;
+      for (const r of fr.requests) if (ctx.game.rejectFriend(r.id).ok) n++;
+      ctx.refresh(); toast(`${n} ${n === 1 ? 'solicitud rechazada' : 'solicitudes rechazadas'}`);
+    } }, 'Rechazar todas'), h('button.btn.gold.small', { type: 'button', onclick: () => { // 31/10: aceptar todas de una vez
       let n = 0;
       for (const r of fr.requests) { if (!ctx.game.acceptFriend(r.id).ok) break; n++; }
       ctx.refresh(); toast(n ? `${n} ${n === 1 ? 'amigo nuevo' : 'amigos nuevos'}` : 'Tu lista de amigos está llena', n ? 'ok' : 'err');
-    } }, 'Aceptar todas') : null,
+    } }, 'Aceptar todas')) : null,
     h('ul.people', fr.requests.map((r) => h('li.person',
       avatar(r.faction, r.name, '', r.level),
       h('div.t-info', h('strong', r.name), h('span.muted', `${FAC[r.faction]} · Nv ${r.level} · ${ago(ctx.S.now - r.ts)}`)),
@@ -139,9 +142,11 @@ function friendsView(ctx) {
       h('div.t-info', h('strong', r.name), h('span.muted', `Esperando respuesta · ${ago(ctx.S.now - r.ts)}`)),
       h('button.btn.ghost.small', { type: 'button', onclick: (e) => ctx.act(e.currentTarget, (g) => g.cancelRequest(r.id), () => 'Solicitud cancelada') }, 'Cancelar'))))) : null;
   return h('div.stack',
+    inviteCard(ctx),
     reqCard,
     box.length ? h('section.card.gifts',
       h('div.sec-head', h('h2.display', 'Regalos recibidos'), h('span.pill.violet', `${box.length}`)),
+      h('div.gift-row', box.slice(0, 6).map((g) => h('span.gift-thumb', { title: `${g.name} de ${g.fromName}` }, swatch(g.id)))),
       h('p.muted', box.slice(0, 4).map((g) => `${g.name} de ${g.fromName}`).join(' · ') + (box.length > 4 ? '…' : '')),
       h('button.btn.violet.wide', { type: 'button', onclick: (e) => ctx.act(e.currentTarget, (g) => g.openGifts(), (r) => `${r.opened} ${r.opened > 1 ? 'regalos' : 'regalo'} al inventario`) }, 'Abrir todos')) : null,
     h('section.card',

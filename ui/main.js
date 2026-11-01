@@ -3,7 +3,7 @@
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
-import { h, $, icon, num, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf } from './kit.js';
+import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf } from './kit.js';
 import { errText } from './errors.js';
 import { showOnboarding, resetTutorial } from './onboarding.js';
 import { showReport } from './report.js';
@@ -61,7 +61,7 @@ function refresh({ full = true } = {}) {
   document.body.dataset.faction = S.player.faction;
   drawTop();
   drawGuestBanner();
-  if (full) { drawBadges(); drawTab(); checkEvolution(S); scheduleNotify(S, game); }
+  if (full) { drawBadges(); drawTab(); checkEvolution(S, game); scheduleNotify(S, game); }
   maybeNag(S.player);
 }
 
@@ -125,9 +125,9 @@ function drawTop(energyOnly = false) {
   $('#xp-txt').textContent = `${num(p.xp)}/${num(p.xpNeed)} XP`;
   $('#xp-bar').style.transform = `scaleX(${Math.min(1, p.xp / p.xpNeed)})`;
   $('#me').setAttribute('aria-label', `Ver personaje: ${p.name}, nivel ${p.level}`);
-  countUp($('#gold-val'), p.gold);
-  $('#rep-val').textContent = num(p.rep);
-  $('#ren-val').textContent = num(p.renown);
+  countUp($('#gold-val'), p.gold, compact);
+  $('#rep-val').textContent = compact(p.rep);
+  $('#ren-val').textContent = compact(p.renown);
 }
 
 // Cuentas regresivas calculadas acá con el dato de la fachada; solo se vuelve a consultar al llegar a 0.
@@ -136,7 +136,7 @@ function tickEnergy() {
   if (!p) return;
   const full = p.energy >= p.energyMax;
   const left = p.nextEnergyMs - (performance.now() - S.at);
-  $('#en-sub').textContent = full ? 'LLENA' : `+1 EN ${clock(left)}`;
+  $('#en-sub').textContent = full ? 'LLENA' : matchMedia('(max-width: 380px)').matches ? `+1 ${clock(left)}` : `+1 EN ${clock(left)}`; // v15: corto a 360 px
   $('#energy').setAttribute('aria-label', `Energía ${p.energy} de ${p.energyMax}${full ? ', llena' : `, más 1 en ${clock(left)}`}`);
   for (const el of document.querySelectorAll('[data-energy-cd]')) el.textContent = clock(left);
   let done = false;
@@ -243,6 +243,7 @@ function debugSheet() {
   openSheet({ title: 'Herramientas de prueba', body: h('div.stack',
     h('p.muted', 'Solo para revisar la interfaz. No existen en el juego final.'),
     h('div.row', adv(60_000, '1 min'), adv(20 * 60_000, '20 min'), adv(3_600_000, '1 h'), adv(8 * 3_600_000, '8 h')),
+    h('button.btn.ghost.wide', { type: 'button', onclick: () => { closeSheet(true); refresh(); setTimeout(() => awaySummary({ S, game, go }, 8 * 3_600_000), 350); } }, 'Ver "Mientras no estabas" (8 h)'),
     h('div.row',
       h('button.btn.ghost', { type: 'button', onclick: () => { game.debug.toNext('day'); refresh(); toast('Día siguiente'); } }, 'Día siguiente'),
       h('button.btn.ghost', { type: 'button', onclick: () => restart(S.player.faction === 'hero' ? 'villain' : 'hero') }, `Probar como ${S.player.faction === 'hero' ? 'villano' : 'héroe'}`)),
@@ -279,7 +280,7 @@ function mount() {
         h('button.chip.gold#gold', { type: 'button', onclick: goldSheet }, h('span.chip-ico', icon('coin', 16)), h('span.chip-txt', h('strong#gold-val.tnum', '0'), h('small', 'ORO'))),
         h('button.chip.energy#energy', { type: 'button', onclick: energySheet }, h('span.chip-ico', icon('bolt', 16)), h('span.chip-txt', h('strong#en-val.tnum', '0/0'), h('small#en-sub', ''))),
         h('button.chip.rep#rep', { type: 'button', onclick: repSheet }, h('span.chip-ico', icon('star', 16)), h('span.chip-txt', h('strong#rep-val.tnum', '0'), h('small', 'REPUT.'))),
-        h('button.chip.ren#ren', { type: 'button', onclick: renSheet }, h('span.chip-ico', icon('crown', 16)), h('span.chip-txt', h('strong#ren-val.tnum', '0'), h('small', 'RENOMBRE'))))));
+        h('button.chip.ren#ren', { type: 'button', onclick: renSheet }, h('span.chip-ico', icon('crown', 16)), h('span.chip-txt', h('strong#ren-val.tnum', '0'), h('small', 'RENOM.'))))));
 
   const side = h('nav.sidebar', { 'aria-label': 'Secciones' },
     h('span.brand-side.display', 'OATHBREAK'),

@@ -121,18 +121,24 @@ export const CFG = {
     // Regalos chicos: solo comunes de hasta 2 casillas; tope de recibidos por día; vendibles a los 3 días por 15 de oro.
     giftMaxCells: 2, giftsReceivedPerDay: 5, giftSellDays: 3, giftSellGold: 15,
     // Solicitudes de amistad: vencen a los 7 días; máximo 20 enviadas pendientes; los bots contestan con demora.
-    requestTtlDays: 7, maxOutgoing: 20, botAcceptChance: 0.7, botReplyH: [1, 6], botRequestChancePerHour: 0.01,
+    requestTtlDays: 7, maxOutgoing: 20, botAcceptChance: 0.7, botReplyH: [1, 6], botRequestChancePerHour: 0.01, maxBotRequestsPending: 5,
   },
 
   season: {
-    weeks: 4, tiers: 30, gloryPerTier: 160, // 31/10: antes 130 (el pase se completaba antes de tiempo)
+    weeks: 4, tiers: 30, gloryPerTier: 160, // v15: sin la Gloria doble por ganar del evento, con 160 el activo completa el pase cerca del día 27 (antes, el 24)
+    extraTiers: 10, gloryPerExtra: 250, // v15: después del 30, hasta 10 cofres extra (oro + renombre) para el que juega todo el mes
     renownPerTier: 15, goldMissionMin: 60,
     glory: { win: 3, visit: 2, gift: 3, daily: 5, bonus: 10, mission: 2, prey: 10, faction: 50 },
     cosmetics: { 10: 'temp_aura', 20: 'temp_estatua', 30: 'temp_portal' },
   },
 
   // 31/10: evento de fin de semana (sábado y domingo, ART): más XP por ganar en la Arena y Gloria doble por victoria.
-  events: { weekend: { name: 'Fin de semana de caza', days: [6, 0], xpWinMult: 1.25, gloryWinMult: 2 } },
+  // v15: rotan 3 eventos (uno por semana). La Gloria doble por ganar se quitó: completaba el pase antes de tiempo.
+  events: { weekend: { days: [6, 0], rotation: [
+    { id: 'caza', name: 'Fin de semana de caza', desc: '+25% de XP por ganar en la Arena', xpWinMult: 1.25 },
+    { id: 'botin', name: 'Fin de semana de botín', desc: '+50% del oro de victoria en la Arena', winGoldMult: 1.5 },
+    { id: 'social', name: 'Fin de semana social', desc: 'las visitas dan el doble de oro y de Gloria', visitGoldMult: 2, gloryVisitMult: 2 },
+  ] } },
   // 31/10: invitar amigos. El invitado recibe oro al crear su personaje; el premio del que invita llega con el servidor (E6).
   // v14: +100 de oro y un objeto exclusivo (antes +300; sin servidor no se puede validar el código, así que vale poco).
   referral: { newGold: 100, item: 'farol_amistad', itemName: 'Farol de la amistad', codeRe: '^[A-HJ-NP-Z2-9]{6}$' },

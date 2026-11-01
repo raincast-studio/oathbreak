@@ -58,7 +58,7 @@ export function render(ctx) {
     h('div.page-head',
       h('div', h('p.kick', 'PVP POR TURNOS · MÁX 5 RONDAS'), h('h1.h1', 'ARENA')),
       h('span.pill', '1 energía por ataque')),
-    S.event ? h('p.event-banner', icon('star', 18), h('span', h('strong', S.event), ': +25% de XP por ganar y Gloria doble.')) : null,
+    S.event && p.level >= 3 ? h('p.event-banner', icon('star', 18), h('span', h('strong', S.event.name), `: ${S.event.desc}.`)) : null,
     busy ? missionBanner(ctx) : noEnergy ? h('p.note', 'Sin energía. Recuperás 1 en ', h('strong.tnum', { 'data-energy-cd': '' }, clock(p.nextEnergyMs)), '.') : null,
     segmented([['rivales', 'Rivales'], ['venganza', revenge.length ? `Venganza · ${revenge.length}` : 'Venganza'], ['ranking', 'Ranking']], UI.sub, (k) => { UI.sub = k; ctx.refresh(); }),
     body);

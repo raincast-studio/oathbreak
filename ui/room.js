@@ -2,11 +2,21 @@
 // borde por rareza, iniciales del nombre. Solo presentación: la validez de cada posición la decide la fachada.
 import { CFG, ITEM } from '../src/game.js';
 import { h } from './kit.js';
+import { artEl, floorBg, wallBg } from './art.js';
 
 export const W = CFG.lair.room.w, H = CFG.lair.room.h;
 export const footprint = (id, rot) => { const s = ITEM[id].size; return rot % 2 ? [s[1], s[0]] : s; };
 
-// Paletas de piso y pared (placeholder visual por id).
+// Miniatura de un objeto para listas (inventario, tiendas, regalos): dibujo, o patrón si es piso/pared.
+export function swatch(id, def = ITEM[id]) {
+  const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}`;
+  if (def.cat === 'piso') return h(cls + '.has-art', { style: { background: floorBg(id) } });
+  if (def.cat === 'pared') return h(cls + '.has-art', { style: { background: wallBg(id) } });
+  const a = artEl(id, 'sw-art');
+  return a ? h(cls + '.has-art', a) : h(cls, initials(def.name));
+}
+
+// Paletas de piso y pared (color base; el dibujo está en art.js).
 const FLOOR = { piso_piedra: ['#4A4560', '#3F3A54'], piso_madera: ['#7A5234', '#6B4629'], piso_baldosa: ['#5E6B7A', '#52606E'],
   piso_marmol: ['#CFC8DD', '#BDB5CE'], piso_alfombra: ['#8E2D4A', '#7E2440'], piso_mosaico: ['#2E6E8E', '#C9A13B'], piso_estrellas: ['#1B1450', '#2B2170'] };
 const WALL = { pared_ladrillo: '#7A3B2E', pared_yeso: '#B9AFC8', pared_madera: '#5C3D24', pared_tapiz: '#6A2A5E', pared_vitral: '#2F5C8F', pared_mural: '#C9A13B' };
@@ -21,7 +31,7 @@ export const initials = (name) => name.split(/\s+/).filter((w) => w.length > 2 |
 export function renderRoom(room, opts = {}) {
   const [f1, f2] = FLOOR[room.floor] ?? FLOOR.piso_piedra;
   const grid = h('div.room-grid', {
-    style: { '--f1': f1, '--f2': f2 },
+    style: { '--f1': f1, '--f2': f2, background: floorBg(room.floor ?? 'piso_piedra') }, // v15: patrón dibujado por piso
     'aria-label': `Sala de ${W} por ${H}${room.items.length ? `, ${room.items.length} objetos` : ', vacía'}`,
     role: opts.readonly ? 'img' : 'grid',
   });
@@ -35,7 +45,7 @@ export function renderRoom(room, opts = {}) {
   const items = [...room.items].sort((a, b) => Number(!!a.on) - Number(!!b.on));
   for (const it of items) grid.append(piece(it, opts));
   if (opts.ghost) grid.append(ghostPiece(opts.ghost));
-  return h('div.room', h('div.room-wall', { style: { '--wall': WALL[room.wall] ?? WALL.pared_ladrillo } }), grid);
+  return h('div.room', h('div.room-wall', { style: { '--wall': WALL[room.wall] ?? WALL.pared_ladrillo, background: wallBg(room.wall ?? 'pared_ladrillo') } }), grid);
 }
 
 function piece(p, opts) {
@@ -44,7 +54,8 @@ function piece(p, opts) {
   const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
     style: { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${hh}` },
     title: def.name,
-  }, h('span.p-label', initials(def.name)));
+  }, artEl(p.id, 'p-art') ?? h('span.p-label', initials(def.name)));
+  if (el.firstChild?.classList.contains('p-art')) el.classList.add('has-art');
   if (!opts.readonly) {
     el.tabIndex = 0;
     el.setAttribute('role', 'button');

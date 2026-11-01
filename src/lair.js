@@ -1,5 +1,6 @@
 // Guarida: edificios, Taller, salas, decoración modular, prestigio, tiendas, visitas, racha y escaparate.
 import { CFG, HOUR, MIN, DAY } from './config.js';
+import { weekendEvent } from './events.js';
 import { dayKey, weekKey, mulberry32 } from './core.js';
 import { ITEM, ITEMS, SETS, setPieces } from './catalog.js';
 import { bLevel, bValue, grantItem } from './effects.js';
@@ -315,7 +316,7 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
   vs.hosts.push(h.id);
   const n = vs.hosts.length;
   if (n <= cfg.rewardedCap) {
-    out.gold = missionReward(cfg.goldMissionMin, v.level).gold;
+    out.gold = Math.round(missionReward(cfg.goldMissionMin, v.level).gold * (weekendEvent(now)?.visitGoldMult ?? 1));
     out.xp = cfg.xp;
     syncWorkshop(v, now);
     v.gold += out.gold;
@@ -325,7 +326,7 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
     out.renown = 1; v.lair.renown++; vs.renown++;
   }
   out.streakRewards = checkStreak(v, now);
-  addGlory(v, 'visit', now);
+  addGlory(v, 'visit', now, weekendEvent(now)?.gloryVisitMult ?? 1);
   out.streak = v.lair.streak.count;
   bump(world, v, 'visit', now);
   track(world, v, 'visit', { host: h.isBot ? 'bot' : 'player', gold: out.gold, renown: out.renown, streak: out.streak }, now);

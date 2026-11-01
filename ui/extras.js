@@ -1,6 +1,6 @@
 // 31/10 (plan de la revisión experta): próxima acción, escudo de novato visible, "Mientras no estabas", ceremonia de
 // evolución, PWA con avisos e invitaciones. Solo presenta lo que dice la fachada; no duplica reglas.
-import { h, icon, num, clock, toast, openSheet, closeSheet, sprite, stageOf, reduced, $ } from './kit.js';
+import { h, icon, num, clock, toast, openSheet, closeSheet, sprite, spriteSrc, stageOf, reduced, $ } from './kit.js';
 import { CFG } from '../src/game.js';
 import { claimMission } from './tabs/misiones.js';
 
@@ -51,6 +51,7 @@ export function nextAction(ctx) {
   const vs = lr.ok ? lr.visits : null;
   if (vs && vs.rewarded < vs.rewardedCap) return card('guarida', 'Visitá guaridas mientras esperás', `${vs.rewarded}/${vs.rewardedCap} visitas con premio hoy`, 'Visitar', () => go('social'));
   const wait = p.energy < 1 ? `Recuperás energía en ${clock(p.nextEnergyMs)}` : `Tu misión termina en ${clock(m.msLeft)}`;
+  if (installState() !== 'installed' && LS.get('oathbreak.installNo') !== '1') return card('star', 'Instalá el juego en tu celular', `${wait}. Instalado se abre como una app y te avisa.`, 'Instalar', () => install());
   return card('bell', 'Todo al día', wait, notifyState() === 'default' ? 'Avisame' : null, () => askNotify());
 }
 
@@ -68,9 +69,9 @@ export function spendHint(p, game) {
 /* ---------- "Mientras no estabas" ---------- */
 const SEEN = 'oathbreak.lastSeen';
 export function markSeen(now) { LS.set(SEEN, String(now)); }
-export function awaySummary(ctx) {
+export function awaySummary(ctx, force = 0) {
   const { S, game, go } = ctx;
-  const last = Number(LS.get(SEEN)) || 0;
+  const last = force ? S.now - force : Number(LS.get(SEEN)) || 0; // force: ms simulados (herramientas de prueba)
   markSeen(S.now);
   if (!last || S.now - last < 30 * 60_000) return;
   const ib = game.inbox();
@@ -88,7 +89,9 @@ export function awaySummary(ctx) {
   if (lr.ok && lr.workshop.level && lr.workshop.stored > 0) lines.push(['coin', `El Taller juntó ${num(lr.workshop.stored)} oro`, null]);
   if (fr.ok && fr.giftbox.length) lines.push(['star', `${fr.giftbox.length} ${fr.giftbox.length === 1 ? 'regalo' : 'regalos'} sin abrir`, null]);
   if (fr.ok && fr.requests.length) lines.push(['social', `${fr.requests.length} ${fr.requests.length === 1 ? 'solicitud' : 'solicitudes'} de amistad`, null]);
-  if (!lines.length) return;
+  // v15: solo si pasó algo que importa (ataques, misión cumplida o regalos); energía llena o solicitudes solas no alcanzan.
+  if (!force && !(def.length || p.mission?.done || (fr.ok && fr.giftbox.length))) return;
+  if (!lines.length) { if (force) toast('No pasó nada en ese lapso.'); return; }
   const away = S.now - last, hrs = Math.floor(away / 3_600_000);
   const goTo = (tab, intent) => () => { closeSheet(); go(tab, { intent }); };
   openSheet({ title: 'Mientras no estabas', body: h('div.stack',
@@ -102,12 +105,13 @@ export function awaySummary(ctx) {
 
 /* ---------- Ceremonia de evolución (cambio de etapa del personaje) ---------- */
 const STAGE_SEEN = 'oathbreak.stageSeen';
-export function checkEvolution(S) {
+export function checkEvolution(S, game) {
   const p = S.player;
-  const st = stageOf(p.level), seen = Number(LS.get(STAGE_SEEN)) || 0;
-  if (!seen) { LS.set(STAGE_SEEN, String(st)); return; }
+  const u = game.uiState();
+  const st = stageOf(p.level), seen = Number(u.ok && u.ui.stageSeen) || Number(LS.get(STAGE_SEEN)) || 0; // v15: en la partida
+  if (!seen) { game.setUi('stageSeen', st); return; }
   if (st <= seen || document.querySelector('.hunt-layer, .evo-layer, .onb')) return;
-  LS.set(STAGE_SEEN, String(st));
+  game.setUi('stageSeen', st);
   const el = h('div.evo-layer', { role: 'dialog', 'aria-modal': 'true', 'aria-label': '¡Evolucionaste!' },
     h('div.evo',
       h('p.kick.gold', `NIVEL ${p.level} · ETAPA ${st} DE 10`),
@@ -116,11 +120,46 @@ export function checkEvolution(S) {
         h('span.evo-old', sprite(p.faction, '', Math.max(1, levelOfStage(seen)))), h('span.evo-new', sprite(p.faction, '', p.level))),
       p.shield?.mode === 'partial' ? h('p.note', `Tu escudo de novato empieza a retirarse: en este nivel te pueden atacar como máximo ${p.shield.perDay} ${p.shield.perDay === 1 ? 'vez' : 'veces'} por día, y una más por cada nivel, hasta quedar sin escudo en el Nv ${p.shield.untilLevel}. Guardá oro en el banco o la Bóveda.`) : null,
       nextStageHint(p.level),
-      h('div.row', h('button.btn.gold.wide', { type: 'button', onclick: () => closeEvo(el) }, 'Continuar'))));
+      h('div.row.evo-actions',
+        h('button.btn.ghost', { type: 'button', onclick: (e) => shareEvolution(p, st, e.currentTarget) }, 'Compartir'),
+        h('button.btn.gold', { type: 'button', onclick: () => closeEvo(el) }, 'Continuar'))));
   document.body.append(el);
   $('#app').inert = true;
   requestAnimationFrame(() => el.classList.add('in'));
   el.querySelector('button')?.focus({ preventScroll: true });
+}
+// v15: tarjeta de 1080×1350 con el personaje nuevo para compartir (o descargar si el navegador no comparte archivos).
+async function shareEvolution(p, st, btn) {
+  btn.disabled = true;
+  try {
+    const W = 1080, H = 1350, c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const hero = p.faction === 'hero', acc = hero ? '#FFC93C' : '#E2364B';
+    const bg = g.createRadialGradient(W / 2, H * 0.42, 60, W / 2, H * 0.42, W * 0.8);
+    bg.addColorStop(0, hero ? '#4A3A12' : '#4A1424'); bg.addColorStop(1, '#0E0A1C');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    g.save(); g.translate(W / 2, H * 0.47); g.globalAlpha = 0.18; g.fillStyle = acc;
+    for (let i = 0; i < 18; i++) { g.rotate(Math.PI / 9); g.fillRect(-14, 0, 28, 560); } g.restore();
+    const img = new Image(); img.src = spriteSrc(p.faction, p.level);
+    await img.decode();
+    const ih = 760, iw = (img.width / img.height) * ih;
+    g.drawImage(img, (W - iw) / 2, H * 0.47 - ih / 2 + 40, iw, ih);
+    try { await document.fonts.load('80px "Lilita One"'); } catch { /* fuente del sistema */ }
+    g.textAlign = 'center';
+    g.fillStyle = acc; g.font = '900 40px Nunito, system-ui, sans-serif'; g.fillText(`NIVEL ${p.level} · ETAPA ${st} DE 10`, W / 2, 120);
+    g.fillStyle = '#F4EEFF'; g.font = '96px "Lilita One", system-ui, sans-serif'; g.fillText(`¡${p.name} evolucionó!`, W / 2, 230, W - 80);
+    g.fillStyle = acc; g.font = '72px "Lilita One", system-ui, sans-serif'; g.fillText('OATHBREAK', W / 2, H - 120);
+    g.fillStyle = '#B4A7D6'; g.font = '800 34px Nunito, system-ui, sans-serif'; g.fillText(hero ? 'Héroes contra Villanos' : 'Villanos contra Héroes', W / 2, H - 66);
+    const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+    const file = new File([blob], `oathbreak-etapa-${st}.png`, { type: 'image/png' });
+    const text = `¡${p.name} llegó a la etapa ${st} en OATHBREAK! ${GAME_URL}?ref=${myCode()}`;
+    if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+    const a = h('a', { href: URL.createObjectURL(blob), download: file.name });
+    document.body.append(a); a.click(); a.remove();
+    toast('Imagen descargada: compartila donde quieras', 'ok');
+  } catch (e) { if (e?.name !== 'AbortError') toast('No se pudo armar la imagen', 'err'); }
+  finally { btn.disabled = false; }
 }
 function closeEvo(el) { $('#app').inert = false; el.remove(); }
 const STAGE_LEVELS = [1, 5, 10, 15, 25, 32, 40, 60, 80, 100];
@@ -132,9 +171,54 @@ function nextStageHint(level) {
 
 /* ---------- PWA: instalación y avisos ---------- */
 export function registerPwa() {
+  // Botón "Instalar": el navegador avisa que se puede instalar; guardamos el aviso para usarlo cuando el jugador toque.
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; dispatchEvent(new Event('oath:installable')); });
+  addEventListener('appinstalled', () => { installEvt = null; toast('¡Listo! OATHBREAK quedó instalado.', 'ok'); });
   if (!('serviceWorker' in navigator) || !isSecureContext) return;
-  navigator.serviceWorker.register('sw.js').catch(() => { /* el visor de artifacts no lo permite: el juego sigue igual */ });
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    const offer = (w) => { if (w && navigator.serviceWorker.controller) updateBanner(w); };
+    offer(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); });
+    });
+    // Revisar si hay versión nueva cada vez que se vuelve a la app (y cada hora).
+    addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    setInterval(() => reg.update().catch(() => {}), 3_600_000);
+  }).catch(() => { /* el visor de artifacts no lo permite: el juego sigue igual */ });
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
 }
+// Aviso de versión nueva (abajo, sobre las pestañas). "Actualizar" activa el service worker nuevo y recarga.
+function updateBanner(worker) {
+  if (document.querySelector('.update-bar')) return;
+  const bar = h('div.update-bar', { role: 'status' }, icon('star', 18), h('span', 'Hay una versión nueva de OATHBREAK.'),
+    h('button.btn.gold.small', { type: 'button', onclick: () => { worker.postMessage('skipWaiting'); bar.remove(); } }, 'Actualizar'),
+    h('button.icon-btn', { type: 'button', 'aria-label': 'Más tarde', onclick: () => bar.remove() }, icon('close', 18)));
+  document.body.append(bar);
+}
+let installEvt = null;
+const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+// Estado para la interfaz: 'installed' | 'prompt' (botón nativo) | 'ios' (instrucciones) | 'manual' (menú del navegador).
+export const installState = () => (standalone() ? 'installed' : installEvt ? 'prompt' : isIOS() ? 'ios' : 'manual');
+export async function install() {
+  if (installEvt) {
+    const e = installEvt; installEvt = null;
+    e.prompt();
+    const r = await e.userChoice.catch(() => null);
+    if (r?.outcome !== 'accepted') installEvt = e; // se puede volver a ofrecer
+    return;
+  }
+  openSheet({ title: 'Instalar OATHBREAK', body: h('div.stack',
+    isIOS() ? h('p', 'En Safari, tocá ', h('strong', 'Compartir'), ' (el cuadrado con la flecha) y después ', h('strong', '"Agregar a inicio"'), '.')
+      : h('p', 'Abrí el menú del navegador (⋮) y elegí ', h('strong', '"Instalar app"'), ' o ', h('strong', '"Agregar a la pantalla de inicio"'), '.'),
+    h('p.muted', 'Se abre como una app, sin barra del navegador, y te puede avisar cuando termine tu misión o te ataquen.'),
+    h('button.btn.gold.wide', { type: 'button', onclick: () => closeSheet() }, 'Entendido')) });
+}
+// Botón listo para usar (o null si ya está instalado).
+export const installButton = (cls = '.btn.gold.small') => (installState() === 'installed' ? null
+  : h(`button${cls}`, { type: 'button', onclick: install }, 'Instalar'));
 export const notifyState = () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
 export async function askNotify() {
   if (notifyState() !== 'default') return;
@@ -185,12 +269,13 @@ export function inviteCard(ctx) {
     if (navigator.share) { try { await navigator.share({ title: 'OATHBREAK', text, url }); return; } catch { /* cancelado */ } }
     open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
-  return h('section.invite',
-    h('span.next-ico', icon('social', 22)),
-    h('div.g-info', h('strong', 'Invitá a tus amigos'), h('span.muted', `Entran con +${CFG.referral.newGold} de oro y un ${CFG.referral.itemName} exclusivo. Con amigos reales, las visitas, los regalos y las venganzas tienen otro sabor.`)),
+  // v15: versión compacta (una fila) dentro de Amigos; el botón abre WhatsApp o el menú de compartir del celular.
+  return h('section.invite.compact',
+    h('span.next-ico', icon('social', 20)),
+    h('div.g-info', h('strong', 'Invitá a tus amigos'), h('span.muted', `Entran con +${CFG.referral.newGold} de oro y un ${CFG.referral.itemName}.`)),
     h('div.row.tight',
-      h('a.btn.gold.small', { href: `https://wa.me/?text=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener' }, 'WhatsApp'),
-      h('button.btn.ghost.small', { type: 'button', onclick: share }, 'Compartir')));
+      h('a.btn.gold.small', { href: `https://wa.me/?text=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener', 'aria-label': 'Invitar por WhatsApp' }, 'WhatsApp'),
+      navigator.share ? h('button.btn.ghost.small', { type: 'button', onclick: share }, 'Más') : null));
 }
 // Al crear el personaje: si llegó con ?ref=CODIGO, cobra el bono de bienvenida una vez.
 export function claimRef(game, refresh) {

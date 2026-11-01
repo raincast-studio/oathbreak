@@ -100,3 +100,14 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 - **Bono de bienvenida seguro (R2):** +100 de oro y el Farol de la amistad (exclusivo). Código con el mismo formato que las invitaciones, solo personajes de menos de 1 día y con fecha de creación, una vez.
 - **Textos honestos:** escudo gradual (1 vez hoy, +1 por nivel hasta quedar sin escudo en el Nv 8), triángulo ("ninguna combinación le gana a todas"; el triángulo no se cumple en todas las etapas), avisos (solo con el juego abierto o instalado en segundo plano).
 - Test de 90 días: tope de winrate semanal del activo 0,60 → 0,62 (igual que el casual; ruido de ±2,7 pp).
+
+## v15 (01/11): pendientes de la revisión de la v13
+- **Arte de la Guarida (`ui/art.js`):** un dibujo vectorial propio para cada objeto del catálogo (62 dibujos + 7 muebles con 6 materiales = 104 objetos), estilo chibi con contorno grueso, en la sala propia, las visitas, el inventario, las tiendas y los regalos. Pisos (7) y paredes (6) son patrones CSS. Sin imágenes: ~30 KB.
+- **PWA:** botón Instalar (Personaje → Cuenta y "Próximo paso" cuando está todo al día; en iPhone muestra cómo hacerlo), juego sin conexión (el service worker guarda todos los archivos y nunca devuelve HTML para un .js), aviso "Hay una versión nueva" con Actualizar.
+- **Social:** tope de 5 solicitudes de bots pendientes, "Rechazar todas", invitación compacta dentro de Amigos, "Facciones" entra a 360 px.
+- **Eventos:** rotan 3 fines de semana (caza: +25% XP por ganar · botín: +50% del oro de victoria · social: visitas con doble oro y Gloria). No se muestran en la primera sesión (Nv 1–2).
+- **Pase:** 160 de Gloria por escalón sin la Gloria doble del evento (el activo lo completa el día 27; antes el 24) y hasta 10 cofres extra (oro + renombre) cada 250 de Gloria después del escalón 30.
+- **Compartir mi evolución:** tarjeta 1080×1350 con el personaje nuevo (compartir en el celular, descarga en la computadora).
+- **"Mientras no estabas":** solo si hubo ataques, misión cumplida o regalos; botón de prueba en las herramientas.
+- **Tiempos:** crear personaje ~45 ms (antes 70–190) y volver tras 72 h ~165–220 ms en Node (antes ~410–640): combates sin detalle para estimar chances, memo de `winChance`, pesos de visitas por hora.
+- **Detalles:** cifras compactas en la barra superior (12,4k), energía corta a 360 px, avisos que no se cortan, el costo de un atributo nunca baja, tutorial y última etapa vista guardados en la partida (viajan con la nube).

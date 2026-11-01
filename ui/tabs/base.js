@@ -10,7 +10,8 @@ export const title = 'Inicio';
 export function render(ctx) {
   // 31/10: primero la próxima acción y los Primeros pasos (antes quedaban bajo el pliegue).
   return h('section.stack',
-    ctx.S.event ? h('p.event-banner', icon('star', 18), h('span', h('strong', ctx.S.event), ': +25% de XP por ganar en la Arena y Gloria doble.')) : null,
+    // v15: el evento no se muestra en la primera sesión (Nv 1–2), para no tapar lo importante.
+    ctx.S.event && ctx.S.player.level >= 3 ? h('p.event-banner', icon('star', 18), h('span', h('strong', ctx.S.event.name), `: ${ctx.S.event.desc}.`)) : null,
     nextAction(ctx),
     firstSteps(ctx),
     stage(ctx),

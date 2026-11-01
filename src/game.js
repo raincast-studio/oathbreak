@@ -122,7 +122,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         friendRequests: So.pendingIn(p, now).length,
         faction: S.factionScore(world, now),
         lastPrize: world.lastPrize ?? null,
-        event: S.weekendEvent(now)?.name ?? null,
+        event: (({ id, name, desc } = {}) => (id ? { id, name, desc } : null))(S.weekendEvent(now) ?? undefined),
       }));
     },
 
@@ -139,6 +139,16 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       grantItem(p, CFG.referral.item);
       track(world, p, 'referral', { code }, now);
       return { ok: true, gold: CFG.referral.newGold, item: CFG.referral.item };
+    }),
+
+    // v15: estado chico de la interfaz que viaja con la partida (y con la nube): tutorial y última etapa vista.
+    uiState: () => query((p) => ({ ok: true, ui: p.ui ?? {} })),
+    setUi: (key, value) => command((p) => {
+      if (!['tutorial', 'stageSeen'].includes(key)) return err('clave_invalida');
+      const json = JSON.stringify(value ?? null);
+      if (json.length > 300) return err('valor_muy_grande');
+      p.ui = { ...(p.ui ?? {}), [key]: JSON.parse(json) };
+      return { ok: true };
     }),
 
     // Personaje
