@@ -85,7 +85,7 @@ export function firstSteps(ctx) {
   if (changed) save(t);
 
   const steps = [
-    ['hunt', 'Ganá tu primera pelea', 'En la Arena, elegí un rival con "Chance alta".', 'arena'],
+    ['hunt', 'Ganá tu primera pelea', 'En la Arena, elegí un rival de tu nivel o menor.', 'arena'],
     ['mission', 'Empezá una misión', 'Para cuando no estés: mientras corre no podés cazar.', 'misiones'],
     ['stat', 'Mejorá un atributo', 'Con el oro que ganes, subí Fuerza, Defensa, Agilidad o Resistencia.', 'personaje'],
     ['visit', 'Visitá una guarida', 'Te da oro y XP, y al dueño una propina.', 'social'],

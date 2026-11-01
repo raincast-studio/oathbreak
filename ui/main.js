@@ -1,5 +1,5 @@
 // Ciclo de la interfaz: la fachada es la única fuente de verdad; la interfaz solo lee, dibuja y manda comandos.
-// Distribución de los mockups Chibi: barra superior con avatar, XP, buzón y 4 fichas; pestañas Base · Misiones · ARENA · Guarida · Social;
+// Distribución de los mockups Chibi: barra superior con avatar, XP, buzón y 4 fichas; pestañas Inicio · Misiones · ARENA · Guarida · Social;
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
@@ -17,7 +17,7 @@ import * as cloud from './cloud.js';
 import { maybeNag, guestDays, linkSheet } from './account.js';
 
 // [id, módulo, ícono, tecla]
-const VIEWS = [['base', base, 'base', 'b'], ['misiones', misiones, 'misiones', 'm'], ['arena', arena, 'arena', 'a'],
+const VIEWS = [['base', base, 'base', 'i'], ['misiones', misiones, 'misiones', 'm'], ['arena', arena, 'arena', 'a'],
   ['guarida', guarida, 'guarida', 'g'], ['social', social, 'social', 's'], ['personaje', personaje, 'personaje', 'p']];
 const NAV = ['base', 'misiones', 'arena', 'guarida', 'social']; // barra inferior (Personaje va por el avatar)
 const view = (k) => VIEWS.find(([id]) => id === k);
@@ -162,7 +162,13 @@ function inboxSheet() {
   const ib = game.inbox();
   const list = ib.ok ? ib.list.slice(0, 30) : [];
   const ago = (ms) => { const m = Math.floor(ms / 60_000); return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.floor(m / 60)} h` : `hace ${Math.floor(m / 1440)} d`; };
-  openSheet({ title: 'Informes', body: list.length ? h('ul.reports', list.map(({ report: r, role, read }) => {
+  const unread = list.filter((x) => !x.read).length;
+  const allRead = unread ? h('button.btn.ghost.small.mark-all', { type: 'button', onclick: (e) => {
+    const r = game.markAllRead();
+    closeSheet(true); refresh();
+    if (r.ok && r.count) toast(`${r.count} ${r.count === 1 ? 'informe marcado' : 'informes marcados'} como leído${r.count === 1 ? '' : 's'}`, 'ok');
+  } }, 'Marcar todos como leídos') : null;
+  openSheet({ title: 'Informes', body: list.length ? h('div.stack', allRead, h('ul.reports', list.map(({ report: r, role, read }) => {
     const won = r.winner === role, foe = role === 'attacker' ? r.defender : r.attacker;
     const gold = r.winner === 'attacker' ? (role === 'attacker' ? r.loot.gold + (r.loot.win ?? 0) : -r.loot.gold) : (role === 'defender' ? r.loot.bounty : 0);
     return h('li', h(`button.report-row${read ? '' : '.unread'}`, { type: 'button', onclick: () => {
@@ -173,7 +179,7 @@ function inboxSheet() {
       h('span.r-info', h('strong', `${role === 'attacker' ? 'Atacaste a' : 'Te atacó'} ${foe.name}`), h('span.muted', `${won ? 'Victoria' : 'Derrota'} · ${ago(S.now - r.ts)}`)),
       h(`span.r-gold.tnum${gold > 0 ? '.plus' : gold < 0 ? '.minus' : ''}`, gold ? `${gold > 0 ? '+' : '−'}${num(Math.abs(gold))}` : '0'),
       read ? null : h('span.dot.inline', { 'aria-label': 'Sin leer' })));
-  })) : h('p.empty', 'Todavía no hay combates.') });
+  }))) : h('p.empty', 'Todavía no hay combates.') });
 }
 
 /* ---------- Navegación ---------- */
@@ -260,7 +266,7 @@ function mount() {
           h('span.me-sub', h('i.fac-dot', { 'aria-hidden': 'true' }), h('span#me-fac', ''), ' · ', h('span#xp-txt.tnum', '')),
           h('span.me-xp', h('span#xp-bar'))),
         h('button.inbox-btn#inbox', { type: 'button', onclick: inboxSheet, 'aria-label': 'Informes' },
-          icon('inbox', 24), h('span.inbox-n#inbox-n', { hidden: true }, '0'))),
+          icon('bell', 24), h('span.inbox-n#inbox-n', { hidden: true }, '0'))),
       h('div.chips',
         h('button.chip.gold#gold', { type: 'button', onclick: goldSheet }, h('span.chip-ico', icon('coin', 16)), h('span.chip-txt', h('strong#gold-val.tnum', '0'), h('small', 'ORO'))),
         h('button.chip.energy#energy', { type: 'button', onclick: energySheet }, h('span.chip-ico', icon('bolt', 16)), h('span.chip-txt', h('strong#en-val.tnum', '0/0'), h('small#en-sub', ''))),
@@ -298,7 +304,7 @@ function start(tab) {
   const note = cloud.takeNotice();
   if (note) toast(note, 'prize');
 }
-// Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Base con "Primeros pasos".
+// Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Inicio con "Primeros pasos".
 function boot() {
   if (game.saveIssue()) return saveIssueScreen(game.saveIssue());
   if (!game.hasCharacter()) return showOnboarding(game, () => start('base'));

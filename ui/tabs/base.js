@@ -1,10 +1,10 @@
-// Base (mockup): tu personaje en escena con accesos a Equipo y Tienda, cuatro tarjetas (misión, arena, guarida, visitas),
+// Inicio (antes Base; mockup): tu personaje en escena con accesos a Equipo y Tienda, cuatro tarjetas (misión, arena, guarida, visitas),
 // el último ataque recibido con "Revancha", primeros pasos y objetivos del día. Solo presenta lo que dice la fachada.
 import { h, icon, num, clock, toast, sprite, avatar } from '../kit.js';
 import { firstSteps } from '../onboarding.js';
 import { startFight } from '../fight.js';
 import { claimMission, rewardLine } from './misiones.js';
-export const title = 'Base';
+export const title = 'Inicio';
 
 export function render(ctx) {
   return h('section.stack',

@@ -2,7 +2,7 @@
 // Mientras hay una misión en curso no se puede atacar (regla de la fachada: en_mision).
 import { h, icon, num, clock, openSheet, closeSheet, avatar } from '../kit.js';
 import { errText } from '../errors.js';
-import { startFight, CHANCE } from '../fight.js';
+import { startFight } from '../fight.js';
 import { segmented } from './guarida.js';
 export const title = 'Arena';
 
@@ -19,9 +19,8 @@ export function render(ctx) {
   const rv = game.revenge();
   const revenge = rv.ok ? rv.list : [];
 
-  // Fila de rival (estilo mockup): avatar, nombre, nivel · nota, botín + chance, botón con su costo.
+  // Fila de rival (estilo mockup): avatar, nombre, nivel · nota, botín (sin chance: decisión del dueño 31/10), botón con su costo.
   const row = (t, note, cta = 'ATACAR', extra = null) => {
-    const [chance, cls] = CHANCE[t.band] ?? ['Fuera de rango', 'xlo'];
     const blocked = !!t.block || noEnergy;
     return h(`li.riv${t.block ? '.blocked' : ''}`,
       avatar(foeF, t.name, '.lg', t.level),
@@ -29,7 +28,7 @@ export function render(ctx) {
         h('strong.display', t.name),
         h('span.muted', `Nv ${t.level}${note ? ` · ${note}` : ''}`),
         t.block && t.block !== 'en_mision' ? h('span.t-block', errText(t.block))
-          : h('span.riv-meta', h('span.loot.tnum', `Botín ${num(t.loot)} oro`), t.band ? h(`span.chance.${cls}`, chance) : null)),
+          : h('span.riv-meta', h('span.loot.tnum', `Botín ${num(t.loot)} oro`))),
       extra,
       h('button.atk', { type: 'button', disabled: blocked, 'aria-label': `${cta === 'VENGAR' ? 'Vengarte de' : 'Atacar a'} ${t.name}, 1 de energía`,
         onclick: (e) => startFight(ctx, e.currentTarget, (g) => g.attack(t.id)) }, cta, h('small', '1 energía')));

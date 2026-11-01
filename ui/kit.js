@@ -29,25 +29,46 @@ const P = {
   coin: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 3.5 1.6 3.6 3.9.4-3 2.6.9 3.8L12 15l-3.4 1.9.9-3.8-3-2.6 3.9-.4z',
   base: 'M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   caza: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm0 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
-  guarida: 'M4 21V9l8-6 8 6v12h-5v-5a3 3 0 0 0-6 0v5z',
   social: 'M8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm8 0a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM1 20c0-3.9 3.1-7 7-7s7 3.1 7 7zm15.5-7c3.6 0 6.5 2.9 6.5 7h-6.2c0-2.8-1-5.2-2.7-6.8.8-.1 1.6-.2 2.4-.2z',
   personaje: 'M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm0 5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zm-4.5 9c.6-2 2.4-3 4.5-3s3.9 1 4.5 3z',
   star: 'M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17l-5.9 3.3 1.3-6.5-4.9-4.5 6.6-.8z',
   shield: 'M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5z',
   crown: 'M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z',
   close: 'M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z',
+  bell: 'M12 2a1.5 1.5 0 0 0-1.5 1.5v.7a6.5 6.5 0 0 0-5 6.3V15l-2 3v1h17v-1l-2-3v-4.5a6.5 6.5 0 0 0-5-6.3v-.7A1.5 1.5 0 0 0 12 2zm-2.6 18.5a2.6 2.6 0 0 0 5.2 0z',
   bug: 'M12 4a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zM6 10h12v4a6 6 0 0 1-12 0zM2 12h3m14 0h3M3 7l3 2m15-2-3 2M3 19l3-2m15 2-3-2',
 };
 // Íconos de trazo (como en los mockups).
 const STROKE = {
   misiones: 'M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a3 3 0 0 1-3-3V5M8 8h7M8 12h7M8 16h4',
-  arena: 'M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 17.5L21 6V3h-3L6.5 14.5M11 19l-6-6M8 16l-4 4M5 21l-2-2',
-  inbox: 'M3 7h18v13H3zM3 11h18M12 7v13M12 7c-2-4-6-3-5 0M12 7c2-4 6-3 5 0',
   tienda: 'M4 8h16l-1.5 12h-13zM8 8a4 4 0 0 1 8 0',
   equipo: 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z',
   revancha: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
 };
+// Íconos de varias capas (relleno con tonos por opacidad; 'evenodd' para huecos).
+const SWORD = 'M12 1.5 13.6 4v11h-3.2V4zM7.4 15h9.2v2.1H7.4zM10.9 17.1h2.2v3.2h-2.2zM12 20a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 1 0 0-2.8z';
+const MULTI = {
+  // Cueva: roca con grietas, entrada oscura y borde interno del arco.
+  guarida: [['M2 21c0-4 1-6.3 2.6-7.2C4.7 8.6 7.5 3.8 12.6 3.5c4.6-.3 7.2 3.6 7.6 7.6 1.4 1.5 1.8 4.6 1.8 9.9zM8.4 21c0-5.6 1.7-9.6 4.6-9.6s3.6 4.2 3.6 9.6zM10.9 5.3 9.6 8 7.3 9.4l.5.6 2.3-1.4 1.5-3.1zM17.1 8.2l1.2 2.4-.2 1.9.7.1.2-2.1-1.3-2.6z', { evenodd: true }],
+    ['M8.4 21c0-5.6 1.7-9.6 4.6-9.6-1.7 1-2.8 4.1-2.8 9.6z']],
+  // Arena: dos espadas cruzadas rellenas; la de atrás en un tono más apagado.
+  arena: [[SWORD, { transform: 'rotate(-45 12 12)', opacity: 0.55 }], [SWORD, { transform: 'rotate(45 12 12)' }]],
+};
 export function icon(name, size = 22) {
+  if (MULTI[name]) {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', size); s.setAttribute('height', size);
+    s.setAttribute('aria-hidden', 'true'); s.classList.add('ico');
+    for (const [d, o = {}] of MULTI[name]) {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', d); p.setAttribute('fill', 'currentColor');
+      if (o.evenodd) p.setAttribute('fill-rule', 'evenodd');
+      if (o.opacity) p.setAttribute('opacity', o.opacity);
+      if (o.transform) p.setAttribute('transform', o.transform);
+      s.append(p);
+    }
+    return s;
+  }
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('width', size); s.setAttribute('height', size);
   s.setAttribute('aria-hidden', 'true'); s.classList.add('ico');

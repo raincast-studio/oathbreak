@@ -298,3 +298,16 @@ test('tienda: 4 fijos y 12 rotativos; la rareza sale con las probabilidades conf
   }
   for (const [r, pct] of Object.entries(CFG.lair.shopOdds)) assert.ok(Math.abs(count[r] / n - pct / 100) < 0.03, `${r}: ${(count[r] / n).toFixed(3)}`);
 });
+
+test('markAllRead: marca todos los informes sin leer y devuelve cuántos', () => {
+  const { g } = newGame();
+  for (let i = 0; i < 3; i++) g.hunt();
+  for (const it of g.debug.world().entities.p0.inbox) it.read = false; // simula informes de defensa sin leer
+  const before = g.inbox().list.filter((x) => !x.read).length;
+  assert.ok(before > 0);
+  const r = g.markAllRead();
+  assert.deepEqual(r, { ok: true, count: before });
+  assert.equal(g.inbox().list.filter((x) => !x.read).length, 0);
+  assert.equal(g.state().unread, 0);
+  assert.equal(g.markAllRead().count, 0);
+});

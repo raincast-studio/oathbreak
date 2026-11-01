@@ -296,6 +296,12 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       if (it) it.read = true;
       return { ok: !!it };
     }),
+    // Marca todos los informes como leídos; devuelve cuántos cambió.
+    markAllRead: () => command((p) => {
+      let n = 0;
+      for (const it of p.inbox) if (!it.read) { it.read = true; n++; }
+      return { ok: true, count: n };
+    }),
 
     // Debug (solo para pruebas; en producción no existe)
     debug: {
