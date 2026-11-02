@@ -111,3 +111,13 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 - **"Mientras no estabas":** solo si hubo ataques, misión cumplida o regalos; botón de prueba en las herramientas.
 - **Tiempos:** crear personaje ~45 ms (antes 70–190) y volver tras 72 h ~165–220 ms en Node (antes ~410–640): combates sin detalle para estimar chances, memo de `winChance`, pesos de visitas por hora.
 - **Detalles:** cifras compactas en la barra superior (12,4k), energía corta a 360 px, avisos que no se cortan, el costo de un atributo nunca baja, tutorial y última etapa vista guardados en la partida (viajan con la nube).
+
+## v15.1 (02/11): revisión técnica (PWA, rendimiento, avisos)
+- **Instalable de verdad:** el manifiesto, el título y los `<meta>` estaban dentro de `<body>` y Chrome no veía el manifiesto (sin botón nativo de instalar). `id: "/oathbreak/"` en el manifiesto.
+- **Service worker:** ya no recarga la página la primera vez que se instala (solo al tocar "Actualizar"); instalación estricta del código; las 40 etapas y las fuentes se guardan en una caché aparte que sobrevive a las versiones (sin conexión la Arena y las fuentes se ven bien); las páginas esperan a la red 4 s como máximo.
+- **Volver tras días afuera:** las horas de bots se simulan de a tramos de ~30 ms (`game.catchUp`), con el mismo mundo final; tarea más larga al volver tras 72 h en un celular medio emulado (CPU ×4): 390–510 ms → 90–150 ms.
+- **Lógica más rápida sin tocar el balance** (guardados y simulador idénticos bit a bit): combate con chances precalculadas, equipo en una pasada, `winChanceMap`/`winChanceBand` que cortan las 16 peleas apenas el resultado queda decidido y retoman cuentas parciales, duelos entre bots sin detalle por rondas.
+- **Guarida:** los dibujos se parsean una vez y se clonan; el inventario largo no se dibuja fuera de pantalla. Entrar con la sala llena: ~450–630 ms → ~160–310 ms (CPU ×4).
+- **Avisos:** un solo sondeo de "Te atacaron" (antes se reiniciaba en cada toque y avisaba de ataques viejos); "Energía llena" con el ritmo de la Enfermería (`energyFullMs`).
+- **Detalles:** cifras de la barra con M (antes "1.235k") y su valor exacto para lectores de pantalla; la evolución se cierra con Esc y devuelve el foco; los atajos de teclado no navegan por debajo de la evolución.
+

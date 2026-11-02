@@ -28,18 +28,27 @@ export const gearStatOf = (e, slot) => e.gearStat?.[slot] ?? gearOptions(slot)[0
 // Bonus que da un tier para su atributo ('*' = la mitad a todos, mínimo 1).
 export const tierBonus = (t, stat) => (stat === '*' ? Math.max(1, Math.floor(t.bonus / 2)) : t.bonus);
 
-export function gearBonus(e, stat) {
-  let b = 0;
-  for (const [slot, tier] of Object.entries(e.gear)) {
-    const t = CFG.gear.tiers[tier - 1]?.tier === tier ? CFG.gear.tiers[tier - 1] : CFG.gear.tiers.find((x) => x.tier === tier);
-    const target = gearStatOf(e, slot);
-    if (target === stat || target === '*') b += tierBonus(t, target);
+// v15.1: una sola pasada por el equipo para los 4 atributos (antes, una por atributo: power() y snap() la repetían
+// cientos de veces por hora simulada). Mismas sumas enteras → mismos valores.
+const tierOf = (tier) => (CFG.gear.tiers[tier - 1]?.tier === tier ? CFG.gear.tiers[tier - 1] : CFG.gear.tiers.find((x) => x.tier === tier));
+export function gearBonuses(e) {
+  const b = {};
+  for (const s of CFG.stats) b[s] = 0;
+  for (const slot in e.gear) {
+    const t = tierOf(e.gear[slot]), target = gearStatOf(e, slot);
+    if (target === '*') { const v = tierBonus(t, '*'); for (const s of CFG.stats) b[s] += v; }
+    else if (target in b) b[target] += tierBonus(t, target);
   }
   return b;
 }
+export const gearBonus = (e, stat) => gearBonuses(e)[stat] ?? 0;
 
 export const effStat = (e, s) => e.stats[s] + gearBonus(e, s);
-export const effStats = (e) => Object.fromEntries(CFG.stats.map((s) => [s, effStat(e, s)]));
+export function effStats(e) {
+  const b = gearBonuses(e), out = {};
+  for (const s of CFG.stats) out[s] = e.stats[s] + b[s];
+  return out;
+}
 export const maxHp = (e) => CFG.hp.base + effStat(e, 'res') * CFG.hp.perRes;
 
 // La vida no se arrastra entre combates (cada pelea arranca completa); se mantiene el campo para el informe.
@@ -122,4 +131,4 @@ export function buyGear(e, slot, tier, stat) {
 
 // Poder aproximado (para bots y sim; no se muestra al jugador).
 // Poder = valor de combate ≈ atributos efectivos ponderados por su costo (el costo está calibrado al valor en combate).
-export const power = (e) => Math.round(CFG.stats.reduce((a, s) => a + CFG.statCostMul[s] * effStat(e, s), 0) * 10) / 10;
+export const power = (e) => { const st = effStats(e); return Math.round(CFG.stats.reduce((a, s) => a + CFG.statCostMul[s] * st[s], 0) * 10) / 10; };

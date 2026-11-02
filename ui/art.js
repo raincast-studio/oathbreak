@@ -1,6 +1,6 @@
-// Arte de la Guarida (v15): un dibujo vectorial propio por objeto, en vista frontal "chibi" con contorno grueso, que
+// Arte de la Guarida (v15, pulido en v15.1): un dibujo vectorial propio por objeto, en vista frontal "chibi" con contorno grueso, que
 // encaja en su huella de la grilla (100 unidades por casilla). Los muebles con variantes de material comparten dibujo y
-// cambian de paleta. Pisos y paredes son patrones CSS. Sin imágenes externas: todo pesa ~30 KB.
+// cambian de paleta y de adornos (gema, vetas, halo). Pisos y paredes son patrones CSS. Sin imágenes externas: ~46 KB (~16 KB gzip).
 import { ITEM } from '../src/game.js';
 
 const OL = '#22152F';
@@ -14,22 +14,34 @@ const HL = (d, w = 4) => L(d, 'rgba(255,255,255,.45)', w); // brillo
 const shadow = (cx, cy, rx) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.16}" fill="rgba(0,0,0,.28)"/>`;
 const sparkle = (x, y, s = 6, c = '#FFF6C8') => `<path d="M${x} ${y - s}L${x + s * 0.3} ${y - s * 0.3}L${x + s} ${y}L${x + s * 0.3} ${y + s * 0.3}L${x} ${y + s}L${x - s * 0.3} ${y + s * 0.3}L${x - s} ${y}L${x - s * 0.3} ${y - s * 0.3}Z" fill="${c}"/>`;
 
-// Materiales: [principal, sombra, detalle]
+// Materiales: [principal, sombra, detalle, tela]. v15.1: tonos más separados (pino miel claro, roble rojizo, ébano casi
+// negro con plata, marfil crema con oro, obsidiana violeta con vetas que brillan, oro con gema) y una tela por material.
 const MAT = {
-  pino: ['#E2B97F', '#B4844C', '#8A5E30'], roble: ['#A8693A', '#7A4824', '#5A3218'], ebano: ['#4A3434', '#2E2020', '#C9CCD6'],
-  marfil: ['#F1E8D4', '#CFC2A3', '#B89A5A'], obsidiana: ['#3A2B5C', '#22183C', '#B07CFF'], oro: ['#F5C64B', '#C2902A', '#FFF1B0'],
-  madera: ['#B87A45', '#86532B', '#5E3A1D'],
+  pino: ['#EBC48A', '#BE8E52', '#8A5E30', '#7FBF8E'], roble: ['#9E5A2E', '#6E3A1A', '#4A2410', '#C9586A'],
+  ebano: ['#3E3038', '#241A22', '#D6DAE4', '#4E8C7A'], marfil: ['#F6EEDC', '#D3C5A4', '#D9A441', '#8E2D4A'],
+  obsidiana: ['#3A2B5C', '#22183C', '#C59BFF', '#8E44F0'], oro: ['#F7C948', '#C08A22', '#FFF1B0', '#E2364B'],
+  madera: ['#B87A45', '#86532B', '#5E3A1D', '#C9586A'],
 };
 const WOOD = MAT.madera;
+const gem = (x, y, r, c) => C(x, y, r, c, 'stroke-width="3"') + `<circle cx="${x - r * 0.3}" cy="${y - r * 0.35}" r="${r * 0.35}" fill="#fff" opacity=".8"/>`;
 
 /* ---------- Muebles base (con variantes de material) ---------- */
+// Pata/tela de un panel de biombo (arco con tela y una rama pintada).
+const screenPanel = (x, y, w, hh, m, d, fab, shade) => P(`M${x} ${y + hh}V${y + 18}Q${x + w / 2} ${y - 4} ${x + w} ${y + 18}V${y + hh}Z`, m)
+  + P(`M${x + 7} ${y + hh - 7}V${y + 22}Q${x + w / 2} ${y + 6} ${x + w - 7} ${y + 22}V${y + hh - 7}Z`, fab, 'stroke-width="3"')
+  + L(`M${x + w / 2} ${y + hh - 10}Q${x + w / 2 - 9} ${y + hh * 0.6} ${x + w / 2 + 2} ${y + hh * 0.42}Q${x + w / 2 + 10} ${y + hh * 0.3} ${x + w / 2} ${y + 20}`, 'rgba(255,255,255,.55)', 3)
+  + `<circle cx="${x + w / 2 - 6}" cy="${y + hh * 0.55}" r="3.5" fill="rgba(255,255,255,.55)"/><circle cx="${x + w / 2 + 7}" cy="${y + hh * 0.36}" r="3" fill="rgba(255,255,255,.55)"/>`
+  + (shade ? `<path d="M${x + 7} ${y + hh - 7}V${y + 22}Q${x + w / 2} ${y + 6} ${x + w - 7} ${y + 22}V${y + hh - 7}Z" fill="rgba(0,0,0,.18)"/>` : '')
+  + R(x + 4, y + hh, 10, 5, d, 2, 'stroke-width="3"') + R(x + w - 14, y + hh, 10, 5, d, 2, 'stroke-width="3"');
+const tufts = (xs, y) => xs.map((x) => `<circle cx="${x}" cy="${y}" r="2.6" fill="rgba(0,0,0,.28)"/>`).join('');
 const BASE = {
   mesa: ([m, d, t]) => shadow(100, 94, 80) + R(28, 56, 12, 36, d, 3) + R(160, 56, 12, 36, d, 3) + R(20, 52, 160, 12, d, 3)
     + R(8, 36, 184, 18, m, 6) + HL('M20 42H180') + L(`M60 58H140`, t, 3),
   silla: ([m, d, t]) => shadow(50, 94, 34) + R(26, 62, 8, 30, d, 3) + R(66, 62, 8, 30, d, 3) + R(24, 8, 52, 50, m, 10)
     + L('M38 18V48M50 18V48M62 18V48', d, 4) + R(18, 50, 64, 14, m, 5) + HL('M28 56H72') + C(50, 12, 4, t),
-  banco: ([m, d]) => shadow(100, 94, 86) + R(24, 60, 12, 32, d, 3) + R(164, 60, 12, 32, d, 3) + R(90, 60, 20, 32, d, 3)
-    + R(10, 44, 180, 18, m, 6) + HL('M22 50H178'),
+  // Banco acolchado: más bajo que la mesa y con almohadón, para que no se confundan en miniatura.
+  banco: ([m, d, , f]) => shadow(100, 94, 86) + R(24, 62, 12, 30, d, 3) + R(164, 62, 12, 30, d, 3) + R(90, 62, 20, 30, d, 3)
+    + R(10, 50, 180, 16, m, 6) + R(16, 30, 168, 22, f, 11) + tufts([46, 82, 118, 154], 41) + HL('M30 36H170', 3) + HL('M22 58H178', 3),
   cama: ([m, d, t]) => shadow(100, 192, 90) + R(10, 14, 180, 74, m, 22) + C(100, 40, 10, t) + R(16, 74, 168, 112, '#F4EEFF', 14)
     + R(16, 120, 168, 66, d, 12) + L('M16 140H184', 'rgba(255,255,255,.35)', 4) + R(32, 82, 62, 30, '#FFFFFF', 12) + R(106, 82, 62, 30, '#FFFFFF', 12)
     + R(10, 176, 14, 16, d, 3) + R(176, 176, 14, 16, d, 3),
@@ -38,9 +50,46 @@ const BASE = {
     + C(44, 110, 4, t) + C(56, 110, 4, t) + HL('M18 120V170'),
   mesita: ([m, d, t]) => shadow(50, 94, 38) + R(22, 70, 8, 22, d, 2) + R(70, 70, 8, 22, d, 2) + R(18, 46, 64, 30, m, 4)
     + L('M18 61H82', d, 3) + C(50, 54, 3, t) + C(50, 68, 3, t) + R(12, 36, 76, 12, d, 4) + HL('M22 41H78'),
-  biombo: ([m, d, t]) => shadow(100, 94, 86) + [12, 72, 132].map((x) => P(`M${x} 92V30Q${x + 28} 4 ${x + 56} 30V92Z`, m)
-    + P(`M${x + 10} 84V36Q${x + 28} 18 ${x + 46} 36V84Z`, d) + L(`M${x + 28} 34V80M${x + 16} 60H${x + 40}`, t, 3)).join(''),
+  // Biombo plegable: tres hojas de tela con marco, plegadas en zigzag (la del medio en sombra), sobre patitas.
+  biombo: ([m, d, , f]) => shadow(100, 96, 88) + [10, 70, 130].map((x, i) => screenPanel(x, 12, 60, 76, m, d, f, i === 1)).join(''),
 };
+// Vista lateral (rotación 1 y 3) de los muebles largos: la profundidad sube por la pantalla. Caja de 100×200.
+const SIDE = {
+  mesa: ([m, d, t]) => shadow(50, 194, 42) + R(12, 60, 76, 88, m, 8)
+    + L('M24 72V134', 'rgba(255,255,255,.45)', 4) + L('M38 66V142M62 66V142', d, 2) + R(8, 140, 84, 16, d, 5) + L('M30 148H70', t, 3)
+    + R(16, 154, 10, 40, d, 3) + R(74, 154, 10, 40, d, 3),
+  banco: ([m, d, , f]) => shadow(50, 194, 42) + R(12, 92, 76, 60, m, 8) + R(18, 86, 64, 56, f, 12) + tufts([38, 62], 104) + tufts([38, 62], 126)
+    + HL('M28 96V130', 3) + R(8, 146, 84, 16, d, 5) + R(16, 160, 10, 34, d, 3) + R(74, 160, 10, 34, d, 3),
+  biombo: ([m, d, , f]) => shadow(50, 194, 36) + screenPanel(36, 14, 50, 70, m, d, f, true) + screenPanel(14, 64, 50, 70, m, d, f, false)
+    + screenPanel(36, 114, 50, 70, m, d, f, true),
+};
+// Dónde va cada adorno de material: gema, halo y vetas (vista frontal / lateral).
+const ANCHOR = {
+  mesa: { gem: [100, 58, 6], glow: [100, 50, 74], grain: 'M30 46H84M116 46H170' },
+  silla: { gem: [50, 57, 5], glow: [50, 44, 40], grain: 'M32 14V24M68 14V24' },
+  banco: { gem: [100, 57, 5], glow: [100, 56, 74], grain: 'M40 58H84M116 58H160' },
+  cama: { gem: [100, 40, 8], glow: [100, 104, 96], grain: 'M28 28H82M118 28H172' },
+  ropero: { gem: [50, 18, 6], glow: [50, 100, 58], grain: 'M22 128V170M78 128V170' },
+  mesita: { gem: [50, 42, 5], glow: [50, 62, 42], grain: 'M26 66H74' },
+  biombo: { gem: [100, 15, 6], glow: [100, 56, 84], grain: 'M16 84V34M184 84V34' },
+  'side:mesa': { gem: [50, 148, 6], glow: [50, 120, 58], grain: 'M40 72V132M62 72V132' },
+  'side:banco': { gem: [50, 154, 5], glow: [50, 136, 56], grain: '' },
+  'side:biombo': { gem: [61, 116, 5], glow: [50, 104, 62], grain: '' },
+};
+// Adornos por material: atrás (halo) y adelante (vetas, gema, destellos). Devuelve [atrás, adelante].
+function matDeco(key, mat, w) {
+  const a = ANCHOR[key]; if (!a) return ['', ''];
+  const [gx, gy, gr] = a.gem, [hx, hy, hr] = a.glow, halo = (c) => `<ellipse cx="${hx}" cy="${hy}" rx="${hr}" ry="${hr * 0.6}" fill="${c}" opacity=".28"/>`, grain = (c, o) => (a.grain ? L(a.grain, c, 2.5).replace('stroke="', `opacity="${o}" stroke="`) : '');
+  switch (mat) {
+    case 'pino': return ['', grain('#A87A40', '.7')];
+    case 'roble': return ['', grain('#3E1E0A', '.6')];
+    case 'ebano': return ['', gem(gx, gy, gr * 0.8, '#D6DAE4')];
+    case 'marfil': return ['', gem(gx, gy, gr * 0.8, '#D9A441')];
+    case 'obsidiana': return [halo('#8E44F0'), grain('#C59BFF', '.9') + gem(gx, gy, gr, '#B07CFF') + sparkle(w - 14, 14, 7, '#E8D9FF')];
+    case 'oro': return [halo('#FFC93C'), gem(gx, gy, gr, '#E2364B') + sparkle(w - 14, 14, 8) + sparkle(16, 22, 5)];
+    default: return ['', ''];
+  }
+}
 
 /* ---------- Piezas reutilizables ---------- */
 const banner = (bg, bg2, emblem, pole = '#C9A13B') => shadow(50, 94, 26) + R(46, 10, 8, 82, pole, 3) + C(50, 8, 6, pole)
@@ -73,8 +122,10 @@ const ART = {
   sillon: () => shadow(100, 94, 88) + R(14, 14, 172, 50, '#B0485A', 22) + R(6, 40, 32, 46, '#9A3A4C', 12) + R(162, 40, 32, 46, '#9A3A4C', 12)
     + R(32, 52, 136, 30, '#C9586A', 10) + L('M100 54V80', '#8E2D40', 3) + R(30, 84, 12, 10, WOOD[1], 2) + R(158, 84, 12, 10, WOOD[1], 2)
     + HL('M40 24H160') + C(70, 34, 3, '#8E2D40', 'stroke-width="0"') + C(130, 34, 3, '#8E2D40', 'stroke-width="0"'),
-  lampara: () => lampGlow(50, 44, 34, '#FFC93C') + shadow(50, 94, 24) + E(50, 84, 24, 8, '#C9A13B') + P('M30 80Q30 54 50 52Q70 54 70 80Z', '#D9A441')
-    + R(44, 30, 12, 24, '#F4EEFF', 4) + flame(50, 26, 1.1) + HL('M38 74Q38 62 46 58'),
+  // Lámpara de aceite con tubo de vidrio y asa (antes se leía como campana).
+  lampara: () => lampGlow(50, 40, 36, '#FFC93C') + shadow(50, 94, 26) + L('M72 78Q90 76 86 62Q83 54 74 60', OL, 5) + E(50, 86, 26, 7, '#C9A13B')
+    + P('M26 84Q24 64 50 62Q76 64 74 84Z', '#E0AE48') + HL('M34 78Q34 70 42 67', 3) + R(38, 54, 24, 10, '#C9A13B', 3)
+    + P('M40 54Q30 42 41 30V12H59V30Q70 42 60 54Z', 'rgba(255,236,190,.6)') + flame(50, 44, 1.05) + HL('M44 18V30', 3),
   gato: () => pet({ fur: '#F0A04B', belly: '#FFE1B8', ears: P('M22 34L26 8L44 24Z', '#F0A04B') + P('M78 34L74 8L56 24Z', '#F0A04B') + P('M28 28L29 16L38 24Z', '#FFB8C6', 'stroke-width="0"') + P('M72 28L71 16L62 24Z', '#FFB8C6', 'stroke-width="0"'),
     tail: L('M70 80Q94 76 88 52', OL, 13) + L('M70 80Q94 76 88 52', '#F0A04B', 7) }) + L('M40 34L42 40M60 34L58 40', '#C97B2A', 3),
   // Biblioteca secreta
@@ -83,9 +134,10 @@ const ART = {
       .map(([c, x, hh]) => R(x, 46 - hh, 11, hh, c, 2, 'stroke-width="3"')).join('')
     + [['#3DDC97', 22, 26], ['#E2364B', 36, 30], ['#FFC93C', 72, 24], ['#4FA3FF', 86, 28], ['#8E44F0', 132, 30], ['#F0A04B', 146, 26], ['#B0485A', 160, 30]]
       .map(([c, x, hh]) => R(x, 86 - hh, 12, hh, c, 2, 'stroke-width="3"')).join('') + E(112, 76, 14, 10, '#F1E8D4'),
-  atril: () => shadow(50, 94, 26) + R(46, 50, 8, 40, WOOD[1], 2) + R(30, 86, 40, 8, WOOD[1], 3) + P('M14 20L86 32L80 56L20 44Z', WOOD[0])
-    + P('M22 26L50 30L48 46L22 42Z', '#F4EEFF', 'stroke-width="3"') + P('M50 30L78 35L74 50L48 46Z', '#F4EEFF', 'stroke-width="3"')
-    + L('M28 33L44 35M28 38L42 40M54 36L70 39M54 41L68 43', '#8E7FB8', 2),
+  // Atril con libro abierto y cinta: más grande para que se lea a una casilla.
+  atril: () => shadow(50, 94, 28) + R(26, 84, 48, 9, WOOD[1], 4) + R(44, 50, 12, 36, WOOD[1], 3) + P('M8 34H92L84 56H16Z', WOOD[0])
+    + P('M14 34Q32 18 50 28Q68 18 86 34L82 44Q66 34 50 42Q34 34 18 44Z', '#F4EEFF', 'stroke-width="3"') + L('M50 28V42', OL, 2.5)
+    + L('M26 32Q36 28 44 32M58 32Q66 28 76 32', '#8E7FB8', 2) + L('M56 40L60 62', '#E2364B', 4) + HL('M22 50H40', 3),
   globo: () => shadow(50, 94, 22) + R(34, 84, 32, 8, '#C9A13B', 3) + R(46, 70, 8, 16, '#C9A13B', 2) + L('M22 40Q22 72 50 72', '#C9A13B', 6)
     + C(50, 40, 28, '#4FA3FF') + P('M34 28Q44 20 52 28Q48 36 40 36Q34 34 34 28Z', '#3DDC97', 'stroke-width="3"')
     + P('M54 44Q66 40 70 50Q62 60 54 54Z', '#3DDC97', 'stroke-width="3"') + HL('M34 22Q40 16 48 16'),
@@ -115,8 +167,9 @@ const ART = {
   candelabro: () => lampGlow(50, 30, 34, '#FFC93C') + shadow(50, 94, 22) + E(50, 88, 20, 6, '#C9A13B') + R(46, 46, 8, 42, '#C9A13B', 3)
     + L('M24 52Q24 64 50 64Q76 64 76 52', OL, 9) + L('M24 52Q24 64 50 64Q76 64 76 52', '#D9A441', 5)
     + [24, 50, 76].map((x) => R(x - 5, x === 50 ? 26 : 36, 10, x === 50 ? 22 : 16, '#F4EEFF', 3) + flame(x, x === 50 ? 22 : 32, 0.7)).join(''),
-  farol: () => lampGlow(50, 56, 36, '#FFC93C') + shadow(50, 94, 24) + R(44, 4, 12, 10, '#5C5670', 3) + P('M26 24L50 12L74 24Z', '#5C5670')
-    + R(28, 24, 44, 52, 'rgba(255,214,107,.55)') + L('M50 24V76M28 50H72', '#5C5670', 4) + flame(50, 58, 0.9) + R(24, 74, 52, 10, '#5C5670', 3) + R(40, 84, 20, 8, '#5C5670', 2),
+  farol: () => lampGlow(50, 54, 38, '#FFC93C') + shadow(50, 94, 24) + R(44, 4, 12, 10, '#4A4560', 3) + P('M24 26L50 12L76 26Z', '#4A4560')
+    + R(28, 24, 44, 52, '#FFD66B') + `<rect x="34" y="30" width="32" height="40" fill="#FFF1B0" opacity=".6"/>` + L('M50 24V76M28 50H72', '#4A4560', 4)
+    + flame(50, 58, 0.9) + R(22, 74, 56, 10, '#4A4560', 3) + R(38, 84, 24, 8, '#4A4560', 2) + HL('M30 28L30 46', 3),
   arana: () => lampGlow(50, 50, 40, '#BDE8FF') + L('M50 0V22', OL, 4) + E(50, 46, 34, 14, '#C9A13B') + [18, 34, 50, 66, 82].map((x) => L(`M${x} 52L${x} 68`, '#BDE8FF', 3)
     + P(`M${x} 66L${x + 5} 74L${x} 84L${x - 5} 74Z`, '#E8F7FF', 'stroke-width="2.5"')).join('') + [24, 50, 76].map((x) => R(x - 4, 22, 8, 16, '#F4EEFF', 2, 'stroke-width="3"') + flame(x, 20, 0.6)).join(''),
   perro: () => pet({ fur: '#C98A55', belly: '#F4DDBB', snout: '#F4DDBB', ears: E(20, 46, 10, 20, '#8A5A34', 'transform="rotate(18 20 46)"') + E(80, 46, 10, 20, '#8A5A34', 'transform="rotate(-18 80 46)"'),
@@ -167,8 +220,14 @@ const ART = {
     + P('M112 26Q112 14 120 14Q128 14 128 26L120 38Z', '#E2364B', 'stroke-width="3"') + C(120, 24, 3, '#fff', 'stroke-width="0"') + R(4, 4, 192, 92, 'none', 4),
   radio: () => shadow(50, 94, 32) + L('M70 30L84 4', OL, 4) + C(84, 4, 4, '#E2364B') + R(14, 30, 72, 60, '#E2364B', 10) + C(36, 60, 14, '#5C5670')
     + L('M28 54H44M28 60H44M28 66H44', '#B8AFC8', 2.5) + R(58, 46, 20, 10, '#BDE8FF', 2, 'stroke-width="3"') + C(64, 72, 5, '#FFC93C') + C(76, 72, 5, '#FFC93C') + HL('M20 38H80', 3),
-  halcon: () => bird({ body: '#8E6A4E', belly: '#F4E6D0', wing: '#6E4E36', beak: '#FFC93C', crest: R(38, 26, 24, 6, '#22152F', 2, 'stroke-width="0" opacity=".25"') })
-    + L('M44 64L48 68M54 70L58 74M44 76L48 80', '#B08A62', 3) + R(30, 90, 40, 6, '#7A4824', 3),
+  // Halcón: silueta de rapaz (estilizado, capucha oscura, pico ganchudo, mirada firme) posado en su percha.
+  halcon: () => shadow(50, 94, 30) + P('M42 70L34 92H66L58 70Z', '#5E4230') + P('M50 22Q78 26 75 58Q72 82 50 86Q28 82 25 58Q22 26 50 22Z', '#9A7454')
+    + P('M50 46Q64 50 62 68Q58 82 50 82Q42 82 38 68Q36 50 50 46Z', '#F4E6D0', 'stroke-width="0"') + L('M43 58L47 60M53 64L57 62M43 70L47 72M53 74L57 72', '#B08A62', 3)
+    + P('M28 40Q14 66 36 88Q40 62 37 44Z', '#6E4E36') + P('M72 40Q86 66 64 88Q60 62 63 44Z', '#6E4E36') + R(10, 84, 80, 8, '#7A4824', 4)
+    + R(38, 78, 8, 10, '#FFC93C', 3, 'stroke-width="3"') + R(54, 78, 8, 10, '#FFC93C', 3, 'stroke-width="3"')
+    + E(50, 31, 21, 18, '#9A7454') + P('M30 30Q34 12 50 12Q66 12 70 30Q62 22 50 22Q38 22 30 30Z', '#4A3424', 'stroke-width="0"')
+    + C(41, 31, 7, '#FFE08A', 'stroke-width="3"') + C(59, 31, 7, '#FFE08A', 'stroke-width="3"') + C(42, 32, 3.6, OL, 'stroke-width="0"') + C(58, 32, 3.6, OL, 'stroke-width="0"')
+    + L('M32 23L46 27M68 23L54 27', OL, 4) + P('M44 38Q50 35 56 38Q57 46 50 52Q49 46 44 42Z', '#FFC93C', 'stroke-width="3"'),
   escudo_mural: () => shadow(50, 94, 22) + P('M50 6L86 18V48Q86 78 50 92Q14 78 14 48V18Z', '#4FA3FF') + P('M50 6V92Q14 78 14 48V18Z', '#3A8FD0')
     + P('M50 22L56 40L74 40L60 52L66 70L50 58L34 70L40 52L26 40L44 40Z', '#FFC93C', 'stroke-width="3"') + HL('M22 24V46'),
   // Doctor (villanos)
@@ -188,14 +247,17 @@ const ART = {
   sarcofago: () => shadow(50, 196, 40) + P('M24 10H76L88 60L78 190H22L12 60Z', '#C9A13B') + P('M32 18H68L78 60L70 182H30L22 60Z', '#3A2B5C')
     + E(50, 52, 16, 18, '#E8C77A') + eyes(43, 57, 50, 3.5) + L('M44 62H56', OL, 3) + P('M34 34Q50 22 66 34', '#4FA3FF', 'fill="none"')
     + L('M34 96H66M38 120H62M40 144H60', '#C9A13B', 4) + P('M44 74L50 86L56 74Z', '#E2364B', 'stroke-width="3"'),
-  vela_negra: () => lampGlow(50, 30, 26, '#B07CFF') + shadow(50, 94, 26) + E(50, 88, 26, 7, '#5C5670') + R(26, 46, 16, 42, '#2A2140', 3)
-    + R(44, 34, 16, 54, '#2A2140', 3) + R(62, 54, 14, 34, '#2A2140', 3) + P('M44 40Q48 48 46 54', 'none', 'stroke="#4A3B70"')
+  vela_negra: () => lampGlow(50, 32, 30, '#B07CFF') + shadow(50, 94, 26) + E(50, 88, 27, 7, '#5C5670') + R(25, 46, 17, 42, '#4A3B6E', 3)
+    + R(43, 34, 17, 54, '#4A3B6E', 3) + R(61, 54, 15, 34, '#4A3B6E', 3) + L('M28 48V58M47 36V50M64 56V62', '#8A78C0', 4) + HL('M30 64V82M48 56V82', 2.5)
     + flame(34, 42, 0.7, '#B07CFF', '#F4EEFF') + flame(52, 30, 0.8, '#B07CFF', '#F4EEFF') + flame(69, 50, 0.6, '#B07CFF', '#F4EEFF'),
   altar: () => lampGlow(100, 40, 50, '#B07CFF') + shadow(100, 96, 90) + R(16, 44, 168, 48, '#2A2140', 6) + R(8, 32, 184, 16, '#3A2B5C', 5)
     + R(30, 56, 140, 26, '#22183C', 4) + P('M100 58L112 70L100 82L88 70Z', '#B07CFF', 'stroke-width="3"') + C(100, 16, 12, '#B07CFF') + `<circle cx="100" cy="16" r="5" fill="#F4EEFF"/>`
     + R(30, 20, 8, 14, '#F1E8D4', 2, 'stroke-width="3"') + flame(34, 16, 0.5, '#B07CFF', '#F4EEFF') + R(162, 20, 8, 14, '#F1E8D4', 2, 'stroke-width="3"') + flame(166, 16, 0.5, '#B07CFF', '#F4EEFF'),
-  cuervo: () => bird({ body: '#2E2A40', belly: '#4A4560', wing: '#1E1A2E', beak: '#5C5670', eyeR: 5 }) + C(41, 35, 2.4, '#E2364B', 'stroke-width="0"') + C(59, 35, 2.4, '#E2364B', 'stroke-width="0"')
-    + P('M44 12L50 20L56 12L52 18Z', '#2E2A40', 'stroke-width="3"'),
+  // Cuervo: pico largo y recto, brillo violeta en las plumas y un aura tenue para leerse sobre pisos oscuros.
+  cuervo: () => lampGlow(50, 58, 38, '#8E44F0') + bird({ body: '#2E2A40', belly: '#47415E', wing: '#1E1A2E', beak: '#6A6488', eyeR: 5,
+    crest: P('M40 16L46 6L50 16L56 8L58 18Z', '#2E2A40', 'stroke-width="3"') })
+    + C(41, 35, 2.6, '#FF4B62', 'stroke-width="0"') + C(59, 35, 2.6, '#FF4B62', 'stroke-width="0"') + P('M44 41L50 56L56 41Z', '#6A6488', 'stroke-width="3"')
+    + L('M30 28Q38 18 50 17', 'rgba(197,155,255,.8)', 3) + L('M28 62Q26 72 30 80M72 62Q74 72 70 80', 'rgba(197,155,255,.7)', 3),
   bandera_pirata: () => banner('#22152F', '#2E2A40', C(50, 40, 12, '#F4EEFF', 'stroke-width="3"') + E(45, 40, 3, 4, '#22152F', 'stroke-width="0"') + E(55, 40, 3, 4, '#22152F', 'stroke-width="0"')
     + L('M38 58L62 70M62 58L38 70', '#F4EEFF', 5), '#7A4824'),
   // Exclusivos
@@ -250,27 +312,69 @@ const DEFS = `<defs>
 <linearGradient id="au" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3DDC97" stop-opacity=".8"/><stop offset=".5" stop-color="#5CC8FF" stop-opacity=".7"/><stop offset="1" stop-color="#B07CFF" stop-opacity=".8"/></linearGradient>
 </defs>`;
 
-// Markup SVG del objeto (o null para pisos/paredes, que son patrones).
+// Objetos planos (se ven desde arriba): al rotar se giran de verdad.
+const FLAT = new Set(['alfombra', 'alfombra_gala', 'estanque', 'mapa_ciudad']);
+export const isFlat = (id) => FLAT.has(id);
+// Únicos que se apoyan en una base con vista lateral propia: [base, material, extra lateral].
+const SIDE_OF = { mesa: ['mesa', MAT.roble, R(30, 70, 40, 26, '#F4EEFF', 6) + E(50, 80, 14, 7, '#FFC93C')],
+  mesa_exp: ['mesa', MAT.ebano, P('M28 92L32 68H44L48 92Z', 'rgba(61,220,151,.75)') + R(30, 60, 16, 8, '#B8AFC8', 2, 'stroke-width="3"') + C(66, 112, 10, 'rgba(176,124,255,.75)')] };
+// Línea de apoyo (fracción de la casilla, desde arriba) donde se apoya lo apilado, por fila dentro de la superficie.
+const SEAT = { mesa: [0.5], mesita: [0.46], mesa_exp: [0.5], altar: [0.44], vitrina: [0.18], mapa_mundi: [0.86, 0.3] };
+export function surfaceTop(id, rot = 0, row = 0) {
+  if (rot % 2 && (SIDE_OF[id] || id.startsWith('mesa_'))) return [0.86, 0.42][row] ?? 0.5;
+  const s = SEAT[id] ?? SEAT[id.split('_')[0]] ?? [0.5];
+  return s[Math.min(row, s.length - 1)];
+}
+
+// Dibujo crudo en coordenadas propias (w×h casillas de 100). side: vista lateral si existe.
+function body(id, side = false) {
+  if (ART[id] && !(side && SIDE_OF[id])) return ART[id]();
+  const [base, mat] = SIDE_OF[id] ? [SIDE_OF[id][0], null] : id.split('_');
+  const pal = SIDE_OF[id] ? SIDE_OF[id][1] : MAT[mat] ?? WOOD;
+  const tbl = side ? SIDE : BASE;
+  if (!tbl[base]) return null;
+  const w = side ? 100 : ITEM[id].size[0] * 100;
+  const [back, front] = mat ? matDeco(side ? `side:${base}` : base, mat, w) : ['', ''];
+  return back + tbl[base](pal) + front + (SIDE_OF[id] && side ? SIDE_OF[id][2] : '');
+}
+
+// Markup SVG del objeto (o null para pisos/paredes, que son patrones). rot: 0..3.
+// 1 y 3: los cuadrados se espejan; los largos usan su vista lateral (o una versión escorzada); los planos giran.
 const cache = new Map();
-export function artMarkup(id) {
-  if (cache.has(id)) return cache.get(id);
+export function artMarkup(id, rot = 0) {
   const def = ITEM[id];
   if (!def || def.cat === 'piso' || def.cat === 'pared') return null;
-  const [w, hh] = def.size;
-  let body;
-  if (ART[id]) body = ART[id]();
+  const [w, hh] = def.size, odd = rot % 2 === 1, square = w === hh, flat = FLAT.has(id);
+  const v = flat ? rot % 4 : !odd ? 0 : square ? 'm' : rot === 3 ? 'sm' : 's';
+  const key = `${id}|${v}`;
+  if (cache.has(key)) return cache.get(key);
+  const W0 = w * 100, H0 = hh * 100, NW = odd ? H0 : W0, NH = odd ? W0 : H0;
+  let inner = null;
+  if (v === 0) inner = body(id);
+  else if (flat) {
+    const b = body(id);
+    inner = b && `<g transform="${rot === 1 ? `translate(${NW} 0) rotate(90)` : rot === 2 ? `translate(${NW} ${NH}) rotate(180)` : `translate(0 ${NH}) rotate(-90)`}">${b}</g>`;
+  } else if (v === 'm') { const b = body(id); inner = b && `<g transform="translate(${W0} 0) scale(-1 1)">${b}</g>`; }
   else {
-    const [base, mat] = id.split('_');
-    body = BASE[base] ? BASE[base](MAT[mat] ?? WOOD) + (mat === 'oro' || mat === 'obsidiana' ? sparkle(w * 100 - 14, 14, 7) : '') : null;
+    const base = SIDE_OF[id]?.[0] ?? id.split('_')[0];
+    const sideOk = SIDE[base] && w === 2 && hh === 1;
+    let b;
+    if (sideOk) b = body(id, true);
+    else { // Escorzo genérico: se angosta el lado que pasa a ser el frente y se apoya abajo, con sombra en toda la huella.
+      const raw = body(id), a = NW / W0, c = NH / H0;
+      const sx = a < c ? a : Math.min(a, c * 1.4), sy = a < c ? Math.min(c, a * 1.4) : c;
+      b = raw && shadow(NW / 2, NH - 6, NW * 0.42) + `<g transform="translate(${(NW - W0 * sx) / 2} ${NH - H0 * sy}) scale(${sx} ${sy})">${raw}</g>`;
+    }
+    inner = b && (v === 'sm' ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
   }
-  const out = body ? `<svg viewBox="-4 -4 ${w * 100 + 8} ${hh * 100 + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${DEFS}${body}</svg>` : null;
-  cache.set(id, out);
+  const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${DEFS}${inner}</svg>` : null;
+  cache.set(key, out);
   return out;
 }
 
 // Elemento listo para insertar (contenedor con el SVG). Si no hay dibujo, devuelve null.
-export function artEl(id, cls = 'art') {
-  const m = artMarkup(id);
+export function artEl(id, cls = 'art', rot = 0) {
+  const m = artMarkup(id, rot);
   if (!m) return null;
   const el = document.createElement('span');
   el.className = cls;
@@ -279,22 +383,24 @@ export function artEl(id, cls = 'art') {
 }
 
 /* ---------- Pisos y paredes (patrones CSS) ---------- */
+// v15.1: juntas alineadas a la grilla, menos contraste en los pisos ruidosos (mosaico, alfombra) y paredes con zócalo,
+// friso o luz para que se lean como muro y no como una franja plana.
 export const FLOOR_BG = {
-  piso_piedra: 'linear-gradient(#3A3550 2px, transparent 2px) 0 0 / 25% 12.5%, linear-gradient(90deg, #3A3550 2px, transparent 2px) 0 0 / 12.5% 25%, repeating-conic-gradient(#4E4866 0 25%, #45405C 0 50%) 0 0 / 25% 25%',
-  piso_madera: 'repeating-linear-gradient(180deg, transparent 0 calc(12.5% - 2px), #5A3A1E calc(12.5% - 2px) 12.5%), repeating-linear-gradient(90deg, #8A5A34 0 30%, #7A4E2C 30% 31%, #946238 31% 62%, #7A4E2C 62% 63%, #8A5A34 63% 100%)',
-  piso_baldosa: 'linear-gradient(#C9C2D6 2px, transparent 2px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, #C9C2D6 2px, transparent 2px) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#6E7E90 0 25%, #5E6B7A 0 50%) 0 0 / 25% 25%',
-  piso_marmol: 'repeating-linear-gradient(35deg, transparent 0 22px, rgba(140,128,170,.35) 22px 24px, transparent 24px 60px), repeating-linear-gradient(-20deg, transparent 0 40px, rgba(140,128,170,.25) 40px 41px), linear-gradient(#E4DEEE, #CFC8DD)',
-  piso_alfombra: 'radial-gradient(circle at 50% 50%, #FFC93C 0 6%, transparent 7%) 0 0 / 25% 25%, repeating-conic-gradient(#8E2D4A 0 25%, #7E2440 0 50%) 0 0 / 25% 25%',
-  piso_mosaico: 'conic-gradient(from 45deg, #2E6E8E 0 25%, #C9A13B 0 50%, #2E6E8E 0 75%, #3A8FB0 0) 0 0 / 12.5% 12.5%',
+  piso_piedra: 'linear-gradient(#332E48 2px, transparent 2px) 0 0 / 25% 12.5%, linear-gradient(90deg, #332E48 2px, transparent 2px) 0 0 / 12.5% 25%, radial-gradient(60% 60% at 35% 30%, rgba(255,255,255,.06), transparent) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#4E4866 0 25%, #47415E 0 50%) 0 0 / 25% 25%',
+  piso_madera: 'repeating-linear-gradient(180deg, transparent 0 calc(12.5% - 2px), #4E3018 calc(12.5% - 2px) 12.5%), linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 0 0 / 37.5% 25%, linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 18.75% 12.5% / 37.5% 25%, repeating-linear-gradient(90deg, #8A5A34 0 30%, #80522F 30% 31%, #915F37 31% 62%, #80522F 62% 63%, #8A5A34 63% 100%)',
+  piso_baldosa: 'linear-gradient(#AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, #AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#66768A 0 25%, #5B6879 0 50%) 0 0 / 25% 25%',
+  piso_marmol: 'repeating-linear-gradient(35deg, transparent 0 22px, rgba(140,128,170,.3) 22px 24px, transparent 24px 60px), repeating-linear-gradient(-20deg, transparent 0 40px, rgba(140,128,170,.2) 40px 41px), linear-gradient(rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(90deg, rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(#E4DEEE, #CFC8DD)',
+  piso_alfombra: 'radial-gradient(circle at 50% 50%, #D9A441 0 3.5%, transparent 4.5%) 0 0 / 25% 25%, linear-gradient(45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, linear-gradient(-45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, repeating-conic-gradient(#86294A 0 25%, #7E2440 0 50%) 0 0 / 25% 25%',
+  piso_mosaico: 'radial-gradient(circle at 0 0, #E0B848 0 3px, transparent 3.5px) 0 0 / 12.5% 12.5%, linear-gradient(rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, conic-gradient(from 45deg, #2F6A88 0 25%, #295F7B 0 50%, #2F6A88 0 75%, #367494 0) 0 0 / 12.5% 12.5%',
   piso_estrellas: 'radial-gradient(circle at 20% 30%, #FFF 0 1.2px, transparent 2px) 0 0 / 17% 19%, radial-gradient(circle at 70% 60%, #FFE7A8 0 1.5px, transparent 2.5px) 0 0 / 23% 21%, radial-gradient(circle at 40% 80%, #BDE8FF 0 1px, transparent 2px) 0 0 / 13% 15%, radial-gradient(120% 90% at 50% 30%, #2B2170, #120C38)',
 };
 export const WALL_BG = {
-  pared_ladrillo: 'linear-gradient(#5A2A20 2px, transparent 2px) 0 0 / 100% 50%, linear-gradient(90deg, #5A2A20 2px, transparent 2px) 0 0 / 28px 50%, #8A4434',
-  pared_yeso: 'radial-gradient(circle at 30% 40%, rgba(255,255,255,.25) 0 10px, transparent 30px) 0 0 / 60px 100%, #B9AFC8',
-  pared_madera: 'repeating-linear-gradient(90deg, #6E4A2A 0 22px, #5C3D24 22px 24px)',
-  pared_tapiz: 'repeating-linear-gradient(90deg, #6A2A5E 0 18px, #FFC93C 18px 20px, #7E3A70 20px 38px, #FFC93C 38px 40px)',
-  pared_vitral: 'linear-gradient(90deg, #22152F 2px, transparent 2px) 0 0 / 26px 100%, linear-gradient(#22152F 2px, transparent 2px) 0 0 / 100% 50%, repeating-linear-gradient(90deg, #2F5C8F 0 26px, #8E44F0 26px 52px, #3DDC97 52px 78px, #FFC93C 78px 104px, #E2364B 104px 130px)',
-  pared_mural: 'radial-gradient(circle at 50% 120%, #FF8F3C 0 30%, transparent 31%) 0 0 / 80px 100%, linear-gradient(#5CC8FF, #C9A13B)',
+  pared_ladrillo: 'linear-gradient(#4E2219 2px, transparent 2px) 0 0 / 100% 50%, linear-gradient(90deg, #4E2219 2px, transparent 2px) 0 0 / 28px 50% repeat-x, linear-gradient(90deg, #4E2219 2px, transparent 2px) 14px 100% / 28px 50% repeat-x, linear-gradient(rgba(255,255,255,.08), rgba(0,0,0,.12)), #8A4434',
+  pared_yeso: 'linear-gradient(transparent 60%, #8A7DA3 60% 64%, #A194B8 64%), radial-gradient(circle at 30% 30%, rgba(255,255,255,.22) 0 8px, transparent 22px) 0 0 / 50px 60%, #B9AFC8',
+  pared_madera: 'linear-gradient(transparent 46%, #3E2814 46% 52%, transparent 52%), repeating-linear-gradient(90deg, #6E4A2A 0 22px, #5C3D24 22px 24px)',
+  pared_tapiz: 'radial-gradient(circle, rgba(255,201,60,.7) 0 2px, transparent 2.5px) 10px 6px / 20px 14px, linear-gradient(transparent 82%, #C9A13B 82% 88%, #4A1A40 88%), repeating-linear-gradient(90deg, #6A2A5E 0 18px, #5E2454 18px 20px)',
+  pared_vitral: 'linear-gradient(rgba(255,255,255,.2), transparent 70%), linear-gradient(90deg, #1A1028 3px, transparent 3px) 0 0 / 26px 100%, linear-gradient(#1A1028 3px, transparent 3px) 0 0 / 100% 50%, repeating-linear-gradient(90deg, #35507C 0 26px, #5E3A9E 26px 52px, #2E7A64 52px 78px, #9A7E36 78px 104px, #8E2E44 104px 130px)',
+  pared_mural: 'radial-gradient(ellipse 34px 16px at 50% 100%, #2F8A62 0 97%, transparent 100%) 0 0 / 80px 100%, radial-gradient(ellipse 26px 12px at 50% 100%, #3E9B6E 0 97%, transparent 100%) 40px 0 / 80px 100%, radial-gradient(circle at 50% 120%, #FF8F3C 0 30%, transparent 31%) 20px 0 / 120px 100%, linear-gradient(#5CC8FF, #C9A13B)',
 };
 export const floorBg = (id) => FLOOR_BG[id] ?? FLOOR_BG.piso_piedra;
 export const wallBg = (id) => WALL_BG[id] ?? WALL_BG.pared_ladrillo;

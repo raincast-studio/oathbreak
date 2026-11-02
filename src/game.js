@@ -6,7 +6,7 @@ import * as C from './character.js';
 import * as S from './systems.js';
 import * as Lr from './lair.js';
 import * as O from './objectives.js';
-import { energyMax, grantItem } from './effects.js';
+import { energyMax, energyRegenMin, grantItem } from './effects.js';
 import { ITEM } from './catalog.js';
 import { migrate } from './migrate.js';
 import { hasKey, isInt, isPosInt } from './economy.js';
@@ -66,6 +66,18 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     hasCharacter: () => !!P(),
     saveIssue: () => saveIssue,
     save: () => { if (world) persist(true); return { ok: !!world }; },
+    // v15.1: ponerse al día con las horas de bots de a tramos (la interfaz lo llama al abrir y cede el hilo entre
+    // tramos, para no congelar la pantalla al volver tras días afuera). Mismo mundo que hacerlo todo de una vez.
+    // Guarda una sola vez, al terminar. pending: horas que faltan.
+    catchUp(maxHours = 6) {
+      if (!world || !P()) return err('sin_personaje');
+      if (!isPosInt(maxHours)) return err('horas_invalidas');
+      const now = clock.now();
+      const hours = S.tickBots(world, now, maxHours);
+      const pending = S.botHoursPending(world, now);
+      if (hours && !pending) persist();
+      return { ok: true, hours, pending };
+    },
 
     // Idempotencia: si un comando se reintenta con la misma clave (p. ej. por un corte de red), devuelve el resultado
     // original sin volver a ejecutarlo. Uso: game.withOp('uuid', () => game.buyStat('fue')).
@@ -110,6 +122,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
           xp: p.xp, xpNeed: CFG.xpNeed(p.level),
           maxHp: C.maxHp(p),
           energy: p.energy, energyMax: energyMax(p), nextEnergyMs: C.nextEnergyIn(p, now),
+          // v15.1: cuánto falta para la energía llena, con la Enfermería (el aviso usaba el ritmo base: llegaba tarde).
+          energyFullMs: p.energy >= energyMax(p) ? 0 : C.nextEnergyIn(p, now) + (energyMax(p) - p.energy - 1) * energyRegenMin(p) * 60_000,
           gold: p.gold, bank: p.bank, rep: p.rep, renown: p.lair.renown, record: p.record,
           stats: p.stats, effStats: C.effStats(p),
           statCosts: Object.fromEntries(CFG.stats.map((k) => [k, C.statCost(p, k)])),

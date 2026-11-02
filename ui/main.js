@@ -128,6 +128,10 @@ function drawTop(energyOnly = false) {
   countUp($('#gold-val'), p.gold, compact);
   $('#rep-val').textContent = compact(p.rep);
   $('#ren-val').textContent = compact(p.renown);
+  // v15.1: las cifras compactas (12,4k) se leen con su valor exacto.
+  $('#gold').setAttribute('aria-label', `Oro: ${num(p.gold)}`);
+  $('#rep').setAttribute('aria-label', `Reputación: ${num(p.rep)}`);
+  $('#ren').setAttribute('aria-label', `Renombre: ${num(p.renown)}`);
 }
 
 // Cuentas regresivas calculadas acá con el dato de la fachada; solo se vuelve a consultar al llegar a 0.
@@ -149,7 +153,16 @@ function tickEnergy() {
   if (done || (!full && left <= 0)) refresh();
 }
 setInterval(tickEnergy, 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+// Al volver a la app: ponerse al día de a tramos, redibujar y "Mientras no estabas" (se mide desde la última vez que la app
+// estuvo visible). v15.1: un solo listener (antes se sumaba uno por cada start(), p. ej. al reiniciar desde las herramientas).
+let started = false;
+document.addEventListener('visibilitychange', async () => {
+  if (!started) return;
+  if (document.hidden) { const st = game.state(); if (st.ok) markSeen(st.now); return; }
+  await catchUp();
+  refresh();
+  if (S.player) awaySummary({ S, game, go });
+});
 
 const infoSheet = (title, ico, value, paras, facts = []) => openSheet({ title, body: h('div.stack',
   h('div.big-stat', icon(ico, 28), h('strong', value)),
@@ -213,7 +226,7 @@ function drawTab() {
 
 addEventListener('hashchange', () => go(location.hash.slice(1)));
 addEventListener('keydown', (e) => {
-  if (sheetOpen() || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select') || document.querySelector('.hunt-layer, .onb')) return;
+  if (sheetOpen() || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select') || document.querySelector('.hunt-layer, .onb, .evo-layer')) return; // v15.1: tampoco con la evolución abierta
   const v = VIEWS.find(([, , , key]) => key === e.key.toLowerCase());
   if (v) { e.preventDefault(); go(v[0]); }
 });
@@ -305,9 +318,30 @@ function saveIssueScreen(issue) {
       h('button.btn.crimson.wide', { type: 'button', onclick: () => { game.debug.discardBadSave(); location.reload(); } }, 'Guardar una copia y empezar de nuevo'))));
 }
 
-function start(tab) {
+// v15.1: al volver tras horas o días, la fachada simula cada hora de los bots (hasta 72). Se hace de a tramos de ~30 ms
+// cediendo el hilo entre tramos: la pantalla no se congela (antes, una sola tarea de 300–450 ms en un celular medio).
+const yieldNow = () => (globalThis.scheduler?.yield ? scheduler.yield() : new Promise((r) => setTimeout(r, 0)));
+let catching = null;
+function catchUp() {
+  catching ??= (async () => {
+    const main = $('#main');
+    try {
+      for (let guard = 0; guard < 500; guard++) {
+        const t0 = performance.now();
+        let r;
+        do r = game.catchUp(2); while (r.ok && r.pending && performance.now() - t0 < 30);
+        if (!r.ok || !r.pending) return;
+        main?.setAttribute('aria-busy', 'true');
+        await yieldNow();
+      }
+    } finally { main?.removeAttribute('aria-busy'); catching = null; }
+  })();
+  return catching;
+}
+async function start(tab) {
   mount();
   S.tab = tab;
+  await catchUp();
   refresh();
   go(S.tab);
   const note = cloud.takeNotice();
@@ -315,8 +349,7 @@ function start(tab) {
   claimRef(game, refresh);
   awaySummary({ S, game, go });
   registerPwa();
-  // "Mientras no estabas": se mide desde la última vez que la app estuvo visible.
-  addEventListener('visibilitychange', () => { if (document.hidden) { const st = game.state(); if (st.ok) markSeen(st.now); } else if (load()) awaySummary({ S, game, go }); });
+  started = true;
 }
 // Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Inicio con "Primeros pasos".
 function boot() {

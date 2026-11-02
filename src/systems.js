@@ -125,29 +125,61 @@ export function attackBlock(a, d, now, { ignoreEnergy = false, duel = false } = 
 // Pura y reproducible; refleja el triángulo de builds, cosa que un "poder" lineal no puede (R² ≈ 0.3).
 // v15: memo por (ids, atributos efectivos y vida): al volver tras días afuera, la mayoría de las horas repiten el par.
 const WC = new Map();
-export function winChance(a, d, n = CFG.matchmaking.samples) {
-  const A = snap(a), D = snap(d, true);
-  const key = `${a.id}|${d.id}|${n}|${Object.values(A.stats).join(',')}|${A.hp}|${Object.values(D.stats).join(',')}|${D.hp}`;
-  const hit = WC.get(key);
-  if (hit !== undefined) return hit;
-  const v = winChanceRaw(a, d, A, D, n);
-  if (WC.size > 4000) WC.clear();
-  WC.set(key, v);
-  return v;
-}
-function winChanceRaw(a, d, A, D, n) {
+const WC_MAX = 4000; // ~100 B por clave: < 0,5 MB; al llenarse se vacía entero (las claves viejas no vuelven)
+const wcKey = (a, d, A, D, n) => {
+  const a1 = A.stats, d1 = D.stats; // la vida (hp = maxHp) sale de res: alcanza con los atributos efectivos
+  return `${a.id}|${d.id}|${n}|${a1.fue},${a1.def},${a1.agi},${a1.res}|${d1.fue},${d1.def},${d1.agi},${d1.res}`;
+};
+const pairSeed = (a, d) => {
   let h = 2166136261;
   for (const ch of `${a.id}|${d.id}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-  let w = 0;
-  for (let i = 0; i < n; i++) if (resolveCombat(A, D, (h + Math.imul(i + 1, 0x9e3779b1)) >>> 0, CFG.combat, false).winner === 'A') w++;
-  return w / n;
+  return h;
+};
+const wcStore = (key, v) => { if (WC.size >= WC_MAX && !WC.has(key)) WC.clear(); WC.set(key, v); };
+// Cada entrada del memo es el valor exacto (número) o una cuenta parcial { w, i }: w victorias en las primeras i
+// peleas. La pelea i siempre usa la misma semilla, así que una cuenta parcial se puede retomar donde quedó.
+function wcRun(A, D, h, n, st, stop) {
+  for (; st.i < n; ) {
+    if (resolveCombat(A, D, (h + Math.imul(st.i + 1, 0x9e3779b1)) >>> 0, CFG.combat, false).winner === 'A') st.w++;
+    st.i++;
+    if (stop?.(st)) return st;
+  }
+  return st;
 }
+function wcEntry(a, d, n) {
+  const A = snap(a), D = snap(d, true), key = wcKey(a, d, A, D, n);
+  return { A, D, key, hit: WC.get(key) };
+}
+export function winChance(a, d, n = CFG.matchmaking.samples) {
+  const { A, D, key, hit } = wcEntry(a, d, n);
+  if (typeof hit === 'number') return hit;
+  const st = wcRun(A, D, pairSeed(a, d), n, hit ? { ...hit } : { w: 0, i: 0 });
+  const v = st.w / n;
+  wcStore(key, v);
+  return v;
+}
+export const winChanceCacheSize = () => WC.size; // para los tests
+export const winChanceCacheClear = () => WC.clear(); // para los tests
+// v15.1: f(winChance(a, d)) para una f monótona (una banda, un tope): da lo mismo que calcular el valor exacto, pero deja
+// de simular apenas f queda decidida. El valor final está entre w/n y (w + faltan)/n; si f da lo mismo en los dos
+// extremos, por ser monótona da lo mismo en todo el medio. Lo usan el emparejamiento de los bots, la calibración, la
+// recompensa del defensor y el riesgo de XP, que solo comparan o acotan la chance.
+export function winChanceMap(a, d, f, n = CFG.matchmaking.samples) {
+  const { A, D, key, hit } = wcEntry(a, d, n);
+  if (typeof hit === 'number') return f(hit);
+  const decided = (st) => f(st.w / n) === f((st.w + n - st.i) / n);
+  const st0 = hit ? { ...hit } : { w: 0, i: 0 };
+  const st = decided(st0) ? st0 : wcRun(A, D, pairSeed(a, d), n, st0, decided);
+  wcStore(key, st.i >= n ? st.w / n : st);
+  return f(st.w / n);
+}
+// −1 si queda por debajo de lo, 1 si queda por encima de hi, 0 si queda en la banda.
+export const winChanceBand = (a, d, lo, hi, n) => winChanceMap(a, d, (wc) => (wc > hi ? 1 : wc < lo ? -1 : 0), n);
 
 // Recompensa del defensor: solo si el atacante tenía chances reales (≥ 20%) y una vez por atacante por día.
 export function defenseBounty(att, def, now) {
   const b = CFG.pvp.defenseBounty;
-  const wc = winChance(att, def);
-  if (wc < b.minAttackerChance) return { gold: 0, reason: 'rival_debil' };
+  if (winChanceMap(att, def, (wc) => wc < b.minAttackerChance)) return { gold: 0, reason: 'rival_debil' };
   // Antiabuso: un atacante que casi nunca gana (cuenta "sparring") no genera recompensa.
   const rec = att.recent ?? [];
   if (rec.length >= b.recentMin && rec.filter(Boolean).length / rec.length < b.minAttackerWinrate) return { gold: 0, reason: 'atacante_sin_victorias' };
@@ -157,14 +189,16 @@ export function defenseBounty(att, def, now) {
     if ((def.bountyFrom.ids[att.id] ?? 0) >= b.perPairPerDay) return { gold: 0, reason: 'ya_cobrada_hoy' };
     def.bountyFrom.ids[att.id] = (def.bountyFrom.ids[att.id] ?? 0) + 1;
   }
-  const r = Math.min(b.ratioMax, Math.max(b.ratioMin, 0.5 + 2 * wc)); // atacante más peligroso → más recompensa
+  const r = winChanceMap(att, def, (wc) => Math.min(b.ratioMax, Math.max(b.ratioMin, 0.5 + 2 * wc))); // atacante más peligroso → más recompensa
   return { gold: Math.round(missionReward(b.missionMin, att.level).gold * r), reason: null };
 }
 
 function snap(e, defending = false) {
   const stats = effStats(e);
-  if (defending && towerPct(e)) for (const k of ['def', 'agi']) stats[k] = Math.round(stats[k] * (1 + towerPct(e)));
-  return { stats, hp: maxHp(e), maxHp: maxHp(e) }; // cada combate arranca con vida completa
+  const tw = defending ? towerPct(e) : 0;
+  if (tw) for (const k of ['def', 'agi']) stats[k] = Math.round(stats[k] * (1 + tw));
+  const hp = CFG.hp.base + stats.res * CFG.hp.perRes; // = maxHp(e): la Torre no toca res
+  return { stats, hp, maxHp: hp }; // cada combate arranca con vida completa
 }
 export { weekendEvent } from './events.js';
 
@@ -211,10 +245,10 @@ export function pvp(world, att, def, now, opts = {}) {
 
   if (!opts.ignoreEnergy) att.energy -= CFG.energy.pvpCost;
   // Riesgo/recompensa: ganarle a alguien difícil da más XP que pisar a un débil.
-  const risk = opts.duel ? 1 : Math.min(CFG.pvp.riskXpMax, Math.max(CFG.pvp.riskXpMin, 1.6 - winChance(att, def)));
+  const risk = opts.duel ? 1 : winChanceMap(att, def, (wc) => Math.min(CFG.pvp.riskXpMax, Math.max(CFG.pvp.riskXpMin, 1.6 - wc)));
   const seed = deriveSeed(world);
   const A = snap(att), D = snap(def, true);
-  const res = resolveCombat(A, D, seed);
+  const res = resolveCombat(A, D, seed, CFG.combat, !opts.duel); // v15.1: los duelos entre bots no guardan informe: sin detalle
 
   const revenge = !opts.duel && revengeOn(att, def.id, now);
   if (revenge) revenge.used = true;
@@ -334,21 +368,22 @@ export function calibrateBots(world, p) {
 
 // Ajusta un bot de a un punto de atributo hasta que la chance estimada del jugador quede en la banda objetivo y deja
 // la escala de poder en lo calibrado (si no, en su primera hora el bot volvía a subir al poder del jugador: regresión R1
-// de la revisión de la v13, sesión 2 al 34%). Devuelve la última chance medida.
+// de la revisión de la v13, sesión 2 al 34%). Devuelve dónde quedó respecto de la banda (−1, 0 o 1).
 export function calibrateBot(b, p, maxSteps = 6) {
   const mm = CFG.matchmaking;
   const w = ARCHETYPES[b.arch] ?? ARCHETYPES.balanceado;
   const goal = playerTargetWr(p.level) - (b.skill ?? 0);
-  let wc = winChance(p, b);
+  const lo = goal - mm.band, hi = goal + mm.band;
+  let wc = winChanceBand(p, b, lo, hi);
   for (let i = 0; i < maxSteps; i++) {
-    if (wc < goal - mm.band) {
+    if (wc < 0) {
       const s = CFG.stats.filter((k) => b.stats[k] > 1).sort((x, y) => b.stats[y] / w[y] - b.stats[x] / w[x])[0];
       if (!s) break;
       b.stats[s]--;
-    } else if (wc > goal + mm.band) {
+    } else if (wc > 0) {
       b.stats[CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0]]++;
     } else break;
-    wc = winChance(p, b);
+    wc = winChanceBand(p, b, lo, hi);
   }
   b.hp = maxHp(b);
   const pp = power(p);
@@ -432,11 +467,22 @@ export function createBots(world, now) {
 // Destino de una visita de bot: ponderado por prestigio (las guaridas lindas atraen más visitas).
 function pickVisitTarget(world, b, rng, weights) {
   // v15: los pesos se calculan una vez por hora (antes, por cada visita de cada bot).
-  const all = weights ?? Object.values(world.entities).map((e) => [e, 1 + prestige(e).total / 20]);
-  const pairs = all.filter(([e]) => e.id !== b.id);
-  const pool = pairs.map(([e]) => e), w = pairs.map(([, x]) => x);
-  let r = rng() * w.reduce((a, x) => a + x, 0);
-  return pool[w.findIndex((x) => (r -= x) < 0)] ?? pool[0];
+  // v15.1: sin armar arreglos por visita; suma y recorrido en el mismo orden → el mismo destino que antes.
+  const all = weights ?? visitWeights(world);
+  let sum = 0;
+  for (let i = 0; i < all.ents.length; i++) if (all.ents[i].id !== b.id) sum += all.w[i];
+  let r = rng() * sum, first;
+  for (let i = 0; i < all.ents.length; i++) {
+    const e = all.ents[i];
+    if (e.id === b.id) continue;
+    first ??= e;
+    if ((r -= all.w[i]) < 0) return e;
+  }
+  return first;
+}
+function visitWeights(world) {
+  const ents = Object.values(world.entities);
+  return { ents, w: ents.map((e) => 1 + prestige(e).total / 20) };
 }
 
 // Una hora simulada de un bot: ingresos, gasto, duelos entre bots, ataques y visitas.
@@ -446,9 +492,10 @@ function botHour(world, b, now, rng, bots, weights) {
   const r = missionReward(60, b.level);
   // Matchmaking por resultado: si el jugador le gana demasiado seguido, el bot sube su objetivo de poder; si pierde mucho, lo baja.
   if (p) {
-    const wc = winChance(p, b), goal = playerTargetWr(p.level) - (b.skill ?? 0), mm = CFG.matchmaking;
-    if (wc > goal + mm.band) b.scale = Math.min(mm.scaleMax, (b.scale ?? 1) * mm.scaleUp);
-    else if (wc < goal - mm.band) b.scale = Math.max(mm.scaleMin, (b.scale ?? 1) * mm.scaleDown);
+    const goal = playerTargetWr(p.level) - (b.skill ?? 0), mm = CFG.matchmaking;
+    const band = winChanceBand(p, b, goal - mm.band, goal + mm.band);
+    if (band > 0) b.scale = Math.min(mm.scaleMax, (b.scale ?? 1) * mm.scaleUp);
+    else if (band < 0) b.scale = Math.max(mm.scaleMin, (b.scale ?? 1) * mm.scaleDown);
   }
   const target = p ? power(p) * (b.scale ?? 1) : 0;
   const behind = p && power(b) < target;
@@ -461,7 +508,7 @@ function botHour(world, b, now, rng, bots, weights) {
     // Variante de cada pieza según su arquetipo (el atributo que más pesa entre las opciones del slot).
     const pickStat = (slot) => CFG.gear.slots[slot].slice().sort((x, y) => (w[y] ?? 1) - (w[x] ?? 1))[0];
     for (const t of CFG.gear.tiers) for (const slot of Object.keys(CFG.gear.slots))
-      if (power(b) < target && b.level >= t.req && itemPrice(t) <= b.gold * 0.5) buyGear(b, slot, t.tier, pickStat(slot));
+      if (b.level >= t.req && itemPrice(t) <= b.gold * 0.5 && power(b) < target) buyGear(b, slot, t.tier, pickStat(slot)); // lo barato primero
     while (power(b) < target) {
       const s = CFG.stats.slice().sort((x, y) => b.stats[x] / w[x] - b.stats[y] / w[y])[0];
       if (!buyStat(b, s).ok) break;
@@ -493,19 +540,27 @@ function botHour(world, b, now, rng, bots, weights) {
 // Procesa cada hora en punto del mundo (hh:00) que ya pasó, en orden y una sola vez.
 // Cada hora usa su propia semilla: el resultado no depende de cada cuánto se consulte el juego.
 // Si una hora cae en una semana nueva, primero se cierra el escaparate de la semana anterior.
-export function tickBots(world, now) {
+// v15.1: maxHours permite ponerse al día de a tramos (la interfaz cede el hilo entre tramos al volver tras días
+// afuera); como cada hora es independiente del corte, el mundo queda idéntico al de hacerlo de una vez.
+export function tickBots(world, now, maxHours = Infinity) {
   const last = Math.floor(now / HOUR);
   if (world.botHour >= last) return 0;
   const from = Math.max(world.botHour + 1, last - CFG.bots.maxCatchUpHours + 1);
+  const to = Math.min(last, from + Math.max(1, maxHours) - 1);
   const bots = Object.values(world.entities).filter((e) => e.isBot);
-  for (let h = from; h <= last; h++) {
+  for (let h = from; h <= to; h++) {
     settleShowcase(world, h * HOUR);
     const rng = mulberry32((world.seed ^ Math.imul(h, 0x85ebca6b)) >>> 0);
-    const weights = Object.values(world.entities).map((e) => [e, 1 + prestige(e).total / 20]);
+    const weights = visitWeights(world);
     for (const b of bots) botHour(world, b, h * HOUR, rng, bots, weights);
   }
-  world.botHour = last;
-  return last - from + 1;
+  world.botHour = to;
+  return to - from + 1;
+}
+// Horas de bots que faltan simular hasta `now` (con el tope de maxCatchUpHours).
+export function botHoursPending(world, now) {
+  const last = Math.floor(now / HOUR);
+  return world.botHour >= last ? 0 : last - Math.max(world.botHour + 1, last - CFG.bots.maxCatchUpHours + 1) + 1;
 }
 
 export { power };

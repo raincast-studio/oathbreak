@@ -1,8 +1,17 @@
-// Dibujo de una sala 8×8 (propia o ajena). Marcadores en CSS hasta tener sprites: color por categoría,
-// borde por rareza, iniciales del nombre. Solo presentación: la validez de cada posición la decide la fachada.
+// Dibujo de una sala 8×8 (propia o ajena) con el arte de art.js (si falta, marcador CSS con iniciales). Solo presentación: la validez de cada posición la decide la fachada.
 import { CFG, ITEM } from '../src/game.js';
 import { h } from './kit.js';
-import { artEl, floorBg, wallBg } from './art.js';
+import { artEl, floorBg, wallBg, isFlat, surfaceTop } from './art.js';
+
+// v15.1 (rendimiento): artEl arma cada dibujo con innerHTML (el navegador vuelve a parsear el SVG cada vez). Se parsea
+// una vez por (objeto, clase, rotación) y después se clona el nodo: con la sala llena y el inventario, ~3× menos tiempo.
+const ART_NODES = new Map();
+function art(id, cls, rot = 0) {
+  const k = `${id}|${cls}|${rot}`;
+  let n = ART_NODES.get(k);
+  if (n === undefined) { n = artEl(id, cls, rot); ART_NODES.set(k, n); }
+  return n ? n.cloneNode(true) : null;
+}
 
 export const W = CFG.lair.room.w, H = CFG.lair.room.h;
 export const footprint = (id, rot) => { const s = ITEM[id].size; return rot % 2 ? [s[1], s[0]] : s; };
@@ -12,8 +21,8 @@ export function swatch(id, def = ITEM[id]) {
   const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}`;
   if (def.cat === 'piso') return h(cls + '.has-art', { style: { background: floorBg(id) } });
   if (def.cat === 'pared') return h(cls + '.has-art', { style: { background: wallBg(id) } });
-  const a = artEl(id, 'sw-art');
-  return a ? h(cls + '.has-art', a) : h(cls, initials(def.name));
+  const a = art(id, 'sw-art');
+  return a ? h(cls + '.has-art' + (def.size[0] > def.size[1] ? '.wide' : ''), a) : h(cls, initials(def.name));
 }
 
 // Paletas de piso y pared (color base; el dibujo está en art.js).
@@ -43,18 +52,23 @@ export function renderRoom(room, opts = {}) {
   }
   // Primero lo que está en el piso, después lo apilado (queda arriba).
   const items = [...room.items].sort((a, b) => Number(!!a.on) - Number(!!b.on));
-  for (const it of items) grid.append(piece(it, opts));
+  for (const it of items) grid.append(piece(it, opts, it.on ? items.find((o) => !o.on && o.x <= it.x && o.y <= it.y
+    && it.x < o.x + footprint(o.id, o.rot)[0] && it.y < o.y + footprint(o.id, o.rot)[1]) : null));
   if (opts.ghost) grid.append(ghostPiece(opts.ghost));
   return h('div.room', h('div.room-wall', { style: { '--wall': WALL[room.wall] ?? WALL.pared_ladrillo, background: wallBg(room.wall ?? 'pared_ladrillo') } }), grid);
 }
 
-function piece(p, opts) {
+// v15.1: orden de profundidad (lo de más abajo tapa a lo de atrás; lo plano, al fondo), dibujo según la rotación y
+// lo apilado se apoya en el tablero de su superficie (--lift).
+function piece(p, opts, under) {
   const def = ITEM[p.id];
   const [w, hh] = footprint(p.id, p.rot);
+  const z = isFlat(p.id) ? 1 : 2 * (p.y + hh) + (p.on ? 1 : 0);
+  const style = { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${hh}`, '--z': z };
+  if (under) style['--lift'] = (1 - surfaceTop(under.id, under.rot, p.y - under.y)).toFixed(2);
   const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
-    style: { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${hh}` },
-    title: def.name,
-  }, artEl(p.id, 'p-art') ?? h('span.p-label', initials(def.name)));
+    style, title: def.name,
+  }, art(p.id, 'p-art', p.rot) ?? h('span.p-label', initials(def.name)));
   if (el.firstChild?.classList.contains('p-art')) el.classList.add('has-art');
   if (!opts.readonly) {
     el.tabIndex = 0;

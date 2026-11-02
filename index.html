@@ -1,4 +1,4 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>OATHBREAK</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#0E0A1C">
@@ -6,6 +6,7 @@
 <link rel="icon" href="ui/img/icon-192.png">
 <link rel="apple-touch-icon" href="ui/img/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@700;800;900&display=swap">
@@ -391,6 +392,8 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .edit-bar .row .btn { flex: 1 1 auto; }
 .inv-list, .shop-list, .bld-list, .people, .ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .inv-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; border-radius: var(--r); background: var(--surface-2); }
+/* v15.1 (rendimiento): con inventarios largos, las filas fuera de pantalla no se dibujan hasta acercarse. */
+.inv-item, .shop-list > li { content-visibility: auto; contain-intrinsic-size: auto 64px; }
 .inv-main { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 10px 12px; border: 0; background: transparent; text-align: left; border-radius: var(--r); }
 .inv-txt { min-width: 0; display: grid; }
 .inv-txt strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -671,16 +674,45 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
   .chip { padding: 5px 4px; gap: 3px; } .chip-ico { width: 18px; height: 18px; } .chip-ico .ico { width: 13px; height: 13px; }
   .chip-txt strong { font-size: 13px; } .chip-txt small { font-size: 10px; letter-spacing: .02em; }
 }
-/* v15: arte de la Guarida */
+/* v15: arte de la Guarida (pulido v15.1) */
+.room-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); grid-template-rows: repeat(8, minmax(0, 1fr));
+  box-shadow: inset 0 12px 14px -8px rgba(0,0,0,.5), inset 0 0 28px rgba(0,0,0,.22); } /* sombra del muro + viñeta */
+.room-wall { position: relative; box-shadow: inset 0 3px 0 rgba(255,255,255,.1), inset 0 -10px 12px -8px rgba(0,0,0,.45); border-bottom: 5px solid #2A1F3A; }
+.piece { min-width: 0; min-height: 0; z-index: var(--z, 1); }
+.piece.on { z-index: calc(var(--z, 1) + 1); }
 .piece.has-art { background: transparent; border: 0; box-shadow: none; border-radius: 6px; }
-.piece.has-art::after { content: ""; position: absolute; left: 12%; right: 12%; bottom: 1px; height: 3px; border-radius: 3px; background: var(--rb); opacity: .9; }
-.piece.r-comun.has-art::after { opacity: 0; }
+.p-art { position: absolute; inset: 0; z-index: 1; }
 .p-art, .sw-art { display: block; width: 100%; height: 100%; pointer-events: none; }
 .p-art svg, .sw-art svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.piece.on.has-art { margin: 8%; border-radius: 6px; }
+/* Calco: un filo claro despega el contorno oscuro de los pisos oscuros. Épico y legendario suman brillo de su color. */
+.p-art svg { filter: drop-shadow(0 0 1px rgba(244,238,255,.55)); }
+.r-epico .p-art svg, .r-epico .sw-art svg { filter: drop-shadow(0 0 1px rgba(244,238,255,.55)) drop-shadow(0 0 3px rgba(176,124,255,.7)); }
+.r-legendario .p-art svg, .r-legendario .sw-art svg { filter: drop-shadow(0 0 1px rgba(255,241,176,.7)) drop-shadow(0 0 3px rgba(255,201,60,.75)); }
+/* Base en el piso: charco de luz del color de la rareza (común: nada; el dibujo ya trae su sombra). */
+.piece.has-art::before { content: ""; position: absolute; left: 4%; right: 4%; bottom: -2px; height: min(30%, 18px); border-radius: 50%; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side, var(--halo, transparent), transparent); }
+.piece.r-raro { --halo: rgba(79,163,255,.32); } .piece.r-epico { --halo: rgba(176,124,255,.45); } .piece.r-legendario { --halo: rgba(255,201,60,.5); }
+.piece.on.has-art::before { display: none; }
+/* Destello que titila sobre lo legendario. */
+.piece.r-legendario.has-art::after, .swatch.r-legendario.has-art::after { content: ""; position: absolute; z-index: 2; top: 2px; right: 3px; width: 11px; height: 11px; pointer-events: none;
+  background: #FFF6C8; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: twinkle 2.4s ease-in-out infinite; }
+@keyframes twinkle { 0%, 100% { transform: scale(.4) rotate(0); opacity: .3; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .piece.r-legendario.has-art::after, .swatch.r-legendario.has-art::after { animation: none; opacity: .9; } }
+/* Apilado: se apoya en el tablero de la superficie y puede asomar por arriba de su casilla. */
+.piece.on.has-art { margin: 0 6%; border-radius: 6px; }
+.piece.on.has-art .p-art { transform: translateY(calc(var(--lift, .5) * -100%)) scale(.84); transform-origin: 50% 100%; }
 .piece.has-art.sel { outline-offset: 0; background: color-mix(in srgb, var(--gold) 16%, transparent); }
-.swatch.has-art { background: var(--surface); padding: 3px; overflow: hidden; }
+.piece.sel { z-index: 30; }
+.piece.dragging { z-index: 50; }
+.drop-ghost { z-index: 40; }
+/* Miniaturas: fondo con el tono de la rareza; lo largo se agranda un poco (se recortan las puntas, no lo esencial). */
+.swatch.has-art { position: relative; background: var(--surface); padding: 3px; overflow: hidden; }
+.swatch.has-art.r-raro { background: radial-gradient(circle at 50% 65%, rgba(79,163,255,.22), var(--surface) 72%); }
+.swatch.has-art.r-epico { background: radial-gradient(circle at 50% 65%, rgba(176,124,255,.34), var(--surface) 72%); }
+.swatch.has-art.r-legendario { background: radial-gradient(circle at 50% 65%, rgba(255,201,60,.34), var(--surface) 72%); }
+.swatch.wide .sw-art svg { transform: scale(1.22); transform-origin: 50% 70%; }
 .swatch.cat-piso.has-art, .swatch.cat-pared.has-art { padding: 0; }
+.sw-art svg { filter: drop-shadow(0 0 1px rgba(244,238,255,.5)); }
 .invite.compact { padding: 10px 12px; } .invite.compact .row.tight { flex-direction: row; } .invite.compact .muted { font-size: 12px; }
 .sec-head .row.tight { flex-wrap: wrap; justify-content: flex-end; }
 .evo-actions { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }
@@ -694,8 +726,10 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .room-wall { height: 34px; }
 .code-input { text-align: center; font-size: 28px; letter-spacing: .5em; font-variant-numeric: tabular-nums; }
 </style>
+</head>
+<body>
+<!-- v15.1: el manifiesto, el título y los <meta> estaban dentro de <body> (Chrome no ve el manifiesto ahí: la app no se podía instalar). -->
 <noscript><p style="padding:24px">OATHBREAK necesita JavaScript activado.</p></noscript>
 <script type="module" src="ui/main.js"></script>
 
-</body></html>
 </body></html>

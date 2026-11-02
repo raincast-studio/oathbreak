@@ -112,6 +112,7 @@ export function checkEvolution(S, game) {
   if (!seen) { game.setUi('stageSeen', st); return; }
   if (st <= seen || document.querySelector('.hunt-layer, .evo-layer, .onb')) return;
   game.setUi('stageSeen', st);
+  const prev = document.activeElement;
   const el = h('div.evo-layer', { role: 'dialog', 'aria-modal': 'true', 'aria-label': '¡Evolucionaste!' },
     h('div.evo',
       h('p.kick.gold', `NIVEL ${p.level} · ETAPA ${st} DE 10`),
@@ -122,7 +123,10 @@ export function checkEvolution(S, game) {
       nextStageHint(p.level),
       h('div.row.evo-actions',
         h('button.btn.ghost', { type: 'button', onclick: (e) => shareEvolution(p, st, e.currentTarget) }, 'Compartir'),
-        h('button.btn.gold', { type: 'button', onclick: () => closeEvo(el) }, 'Continuar'))));
+        h('button.btn.gold', { type: 'button', onclick: () => closeEvo(el, prev) }, 'Continuar'))));
+  // v15.1: Esc cierra (escucha en el documento: al compartir, el botón se deshabilita y el foco sale del diálogo).
+  el._esc = (e) => { if (e.key === 'Escape') { e.preventDefault(); closeEvo(el, prev); } };
+  document.addEventListener('keydown', el._esc);
   document.body.append(el);
   $('#app').inert = true;
   requestAnimationFrame(() => el.classList.add('in'));
@@ -155,13 +159,16 @@ async function shareEvolution(p, st, btn) {
     const file = new File([blob], `oathbreak-etapa-${st}.png`, { type: 'image/png' });
     const text = `¡${p.name} llegó a la etapa ${st} en OATHBREAK! ${GAME_URL}?ref=${myCode()}`;
     if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
-    const a = h('a', { href: URL.createObjectURL(blob), download: file.name });
+    const href = URL.createObjectURL(blob);
+    const a = h('a', { href, download: file.name });
     document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 10_000); // v15.1: no dejar la imagen de 1080×1350 en memoria
     toast('Imagen descargada: compartila donde quieras', 'ok');
   } catch (e) { if (e?.name !== 'AbortError') toast('No se pudo armar la imagen', 'err'); }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; if (btn.isConnected && document.activeElement === document.body) btn.focus({ preventScroll: true }); }
 }
-function closeEvo(el) { $('#app').inert = false; el.remove(); }
+// v15.1: devuelve el foco a donde estaba (antes quedaba en <body> y el lector de pantalla perdía el lugar).
+function closeEvo(el, prev) { document.removeEventListener('keydown', el._esc); $('#app').inert = false; el.remove(); (prev?.isConnected && prev !== document.body ? prev : $('#main'))?.focus({ preventScroll: true }); }
 const STAGE_LEVELS = [1, 5, 10, 15, 25, 32, 40, 60, 80, 100];
 const levelOfStage = (st) => STAGE_LEVELS[Math.max(0, st - 1)];
 function nextStageHint(level) {
@@ -170,7 +177,13 @@ function nextStageHint(level) {
 }
 
 /* ---------- PWA: instalación y avisos ---------- */
+// v15.1: se registra una sola vez (antes, "Reiniciar desde el onboarding" sumaba listeners y otro setInterval) y solo se
+// recarga cuando el jugador tocó "Actualizar" (antes, la primera instalación del service worker —clients.claim()—
+// disparaba controllerchange y recargaba la página justo después de crear el personaje).
+let pwaReady = false, wantReload = false;
 export function registerPwa() {
+  if (pwaReady) return;
+  pwaReady = true;
   // Botón "Instalar": el navegador avisa que se puede instalar; guardamos el aviso para usarlo cuando el jugador toque.
   addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; dispatchEvent(new Event('oath:installable')); });
   addEventListener('appinstalled', () => { installEvt = null; toast('¡Listo! OATHBREAK quedó instalado.', 'ok'); });
@@ -182,18 +195,21 @@ export function registerPwa() {
       const w = reg.installing;
       w?.addEventListener('statechange', () => { if (w.state === 'installed') offer(w); });
     });
-    // Revisar si hay versión nueva cada vez que se vuelve a la app (y cada hora).
-    addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    // Revisar si hay versión nueva cada vez que se vuelve a la app (y cada hora); si quedó una esperando ("Más tarde"),
+    // volver a ofrecerla.
+    addEventListener('visibilitychange', () => { if (!document.hidden) { offer(reg.waiting); reg.update().catch(() => {}); } });
     setInterval(() => reg.update().catch(() => {}), 3_600_000);
+    // Primera visita: la página cargó las fuentes antes de que existiera el service worker; se las pasamos para guardarlas.
+    navigator.serviceWorker.ready.then((r) => r.active?.postMessage({ type: 'media',
+      urls: performance.getEntriesByType('resource').map((x) => x.name).filter((u) => /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u)) }));
   }).catch(() => { /* el visor de artifacts no lo permite: el juego sigue igual */ });
-  let reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloading) { reloading = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (wantReload) { wantReload = false; location.reload(); } });
 }
 // Aviso de versión nueva (abajo, sobre las pestañas). "Actualizar" activa el service worker nuevo y recarga.
 function updateBanner(worker) {
   if (document.querySelector('.update-bar')) return;
   const bar = h('div.update-bar', { role: 'status' }, icon('star', 18), h('span', 'Hay una versión nueva de OATHBREAK.'),
-    h('button.btn.gold.small', { type: 'button', onclick: () => { worker.postMessage('skipWaiting'); bar.remove(); } }, 'Actualizar'),
+    h('button.btn.gold.small', { type: 'button', onclick: () => { wantReload = true; worker.postMessage('skipWaiting'); bar.remove(); } }, 'Actualizar'),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Más tarde', onclick: () => bar.remove() }, icon('close', 18)));
   document.body.append(bar);
 }
@@ -234,24 +250,42 @@ async function notify(title, body, tag) {
   } catch { /* nada */ }
 }
 // Mientras la pestaña o la app instalada sigan vivas en segundo plano. Sin servidor (E6) no hay push con la app cerrada.
-let timers = [], lastDef = 0;
-export function scheduleNotify(S, game) {
-  timers.forEach(clearTimeout); timers = [];
-  if (notifyState() !== 'granted') return;
-  const p = S.player;
-  if (p.mission && !p.mission.done) timers.push(setTimeout(() => notify('Tu misión terminó', `${p.mission.name}: tu recompensa te espera.`, 'mision'), p.mission.msLeft + 1500));
-  if (p.energy < p.energyMax) {
-    const ms = p.nextEnergyMs + (p.energyMax - p.energy - 1) * (CFG.energy.regenMin * 60_000);
-    timers.push(setTimeout(() => notify('Energía llena', 'Tenés toda la energía: salí a cazar.', 'energia'), ms + 1500));
-  }
-  // "Te atacaron": cada 5 min se consulta la fachada (los bots avanzan al consultar).
-  timers.push(setInterval(() => {
-    if (!document.hidden) return;
-    const ib = game.inbox();
-    const d = (ib.ok ? ib.list : []).find((x) => x.role === 'defender' && !x.read);
-    if (d && d.report.ts > lastDef) { lastDef = d.report.ts; notify(d.report.winner === 'defender' ? 'Te atacaron y ganaste' : 'Te atacaron', `${d.report.attacker.name} te atacó. Mirá el informe.`, 'ataque'); }
-  }, 5 * 60_000));
+// v15.1: scheduleNotify se llama en cada refresh. Antes rearmaba todo cada vez: el sondeo de "Te atacaron" volvía a
+// empezar sus 5 min con cada toque y, al primer sondeo, avisaba de un ataque viejo sin leer (lastDef arrancaba en 0).
+// Ahora el sondeo es uno solo y los avisos de misión y energía se rearman solo si cambia su hora.
+const timers = {};
+let poll = 0, lastDef = null;
+function arm(tag, ms, fn) {
+  const at = Date.now() + ms, t = timers[tag];
+  if (t && Math.abs(t.at - at) < 5_000) return;
+  if (t) clearTimeout(t.id);
+  timers[tag] = { at, id: setTimeout(() => { delete timers[tag]; fn(); }, ms) };
 }
+function disarm(tag) { if (timers[tag]) { clearTimeout(timers[tag].id); delete timers[tag]; } }
+const lastDefense = (game) => {
+  const ib = game.inbox();
+  return (ib.ok ? ib.list : []).reduce((m, x) => (x.role === 'defender' ? Math.max(m, x.report.ts) : m), 0);
+};
+export function scheduleNotify(S, game) {
+  if (notifyState() !== 'granted') { for (const k of Object.keys(timers)) disarm(k); return; }
+  const p = S.player;
+  if (p.mission && !p.mission.done) arm('mision', p.mission.msLeft + 1500, () => notify('Tu misión terminó', `${p.mission.name}: tu recompensa te espera.`, 'mision'));
+  else disarm('mision');
+  if (p.energy < p.energyMax) {
+    arm('energia', p.energyFullMs + 1500, () => notify('Energía llena', 'Tenés toda la energía: salí a cazar.', 'energia'));
+  } else disarm('energia');
+  // "Te atacaron": cada 5 min, con la app en segundo plano, se consulta la fachada (los bots avanzan al consultar).
+  // Solo avisa de ataques posteriores al momento en que se activaron los avisos.
+  lastDef ??= lastDefense(game);
+  if (!poll) poll = setInterval(() => {
+    if (!document.hidden || notifyState() !== 'granted') return;
+    const ib = game.inbox();
+    const d = (ib.ok ? ib.list : []).find((x) => x.role === 'defender' && !x.read && x.report.ts > lastDef);
+    if (d) { lastDef = d.report.ts; notify(d.report.winner === 'defender' ? 'Te atacaron y ganaste' : 'Te atacaron', `${d.report.attacker.name} te atacó. Mirá el informe.`, 'ataque'); }
+  }, 5 * 60_000);
+}
+// Para los tests de interfaz: cuántos temporizadores de avisos hay vivos.
+export const notifyTimers = () => ({ timeouts: Object.keys(timers).length, intervals: poll ? 1 : 0 });
 
 /* ---------- Invitar amigos ---------- */
 const REF = 'oathbreak.ref';

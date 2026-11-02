@@ -93,11 +93,14 @@ export const uid = () => (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${
 
 // Count-up: anima el número desde el valor mostrado hasta el nuevo (sin animación si reduced-motion).
 // v15: cifras compactas para las fichas de la barra superior (12.400 → 12,4k; 250.000 → 250k), así no se cortan.
+// Cifras compactas para la barra superior: 9.999 · 12,4k · 999k · 1,2M. v15.1: antes 999.999 salía "1.000k" y
+// 1.234.567, "1.235k" (con el punto de miles se lee como 1,2k).
 export const compact = (n) => {
   n = Math.round(n);
-  if (Math.abs(n) < 10_000) return num(n);
-  const k = n / 1000;
-  return `${Math.abs(k) < 100 ? k.toFixed(1).replace('.', ',').replace(',0', '') : num(k)}k`;
+  const a = Math.abs(n);
+  if (a < 10_000) return num(n);
+  const fmt = (v, unit) => `${Math.abs(v) < 99.95 ? v.toFixed(1).replace('.', ',').replace(/,0$/, '') : num(v)}${unit}`;
+  return a < 999_500 ? fmt(n / 1000, 'k') : fmt(n / 1e6, 'M');
 };
 export function countUp(el, to, fmt = num) {
   const from = Number(el.dataset.v ?? to);
