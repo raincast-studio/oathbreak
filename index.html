@@ -713,6 +713,14 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .swatch.wide .sw-art svg { transform: scale(1.22); transform-origin: 50% 70%; }
 .swatch.cat-piso.has-art, .swatch.cat-pared.has-art { padding: 0; }
 .sw-art svg { filter: drop-shadow(0 0 1px rgba(244,238,255,.5)); }
+/* v17-arte: luz única del juego (arriba a la izquierda; ver ui/art.js). Oclusión donde un objeto toca la pared. */
+/* Filo de luz: el calco claro ahora es un borde iluminado arriba a la izquierda (del lado de la luz), no un halo parejo. */
+.p-art svg { filter: drop-shadow(-.7px -.7px 0 rgba(255,244,220,.5)); }
+.sw-art svg { filter: drop-shadow(-.5px -.5px 0 rgba(255,244,220,.5)); }
+.r-epico .p-art svg, .r-epico .sw-art svg { filter: drop-shadow(-.7px -.7px 0 rgba(255,244,220,.5)) drop-shadow(0 0 3px rgba(176,124,255,.75)); }
+.r-legendario .p-art svg, .r-legendario .sw-art svg { filter: drop-shadow(-.7px -.7px 0 rgba(255,250,215,.65)) drop-shadow(0 0 3px rgba(255,201,60,.8)); }
+.piece.wall { background: radial-gradient(80% 42% at 56% 0, rgba(10,4,20,.55), rgba(10,4,20,.2) 55%, transparent) no-repeat; }
+/* /v17-arte */
 .invite.compact { padding: 10px 12px; } .invite.compact .row.tight { flex-direction: row; } .invite.compact .muted { font-size: 12px; }
 .sec-head .row.tight { flex-wrap: wrap; justify-content: flex-end; }
 .evo-actions { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }

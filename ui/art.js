@@ -1,17 +1,43 @@
-// Arte de la Guarida (v15, pulido en v15.1): un dibujo vectorial propio por objeto, en vista frontal "chibi" con contorno grueso, que
-// encaja en su huella de la grilla (100 unidades por casilla). Los muebles con variantes de material comparten dibujo y
-// cambian de paleta y de adornos (gema, vetas, halo). Pisos y paredes son patrones CSS. Sin imágenes externas: ~46 KB (~16 KB gzip).
+// Arte de la Guarida (v15, pulido en v15.1, volumen en v17): un dibujo vectorial propio por objeto, en vista frontal "chibi" con
+// contorno grueso, que encaja en su huella de la grilla (100 unidades por casilla). Los muebles con variantes de material comparten
+// dibujo y cambian de paleta y de adornos (gema, vetas, halo). Pisos y paredes son patrones CSS. Sin imágenes externas.
+//
+// LUZ DEL JUEGO (v17, igual que los sprites de personajes): una sola luz principal, cálida (#FFF4DC), desde ARRIBA A LA IZQUIERDA y
+// un poco al frente; la sombra propia cae abajo a la derecha y se enfría hacia violeta (#2A1744, el tono de la noche del juego).
+//  · Volumen por sistema, no a mano: cada forma con contorno se pinta con un degradado compartido por id según su color
+//    (lineal de arriba hacia abajo en rectángulos, radial con brillo arriba a la izquierda en curvas). Los degradados viven una
+//    sola vez en un <svg id="art-defs"> del documento (vol/flush), no en cada dibujo.
+//  · Sombra de contacto: elipse con degradado radial (sin blur), corrida a la derecha; la oclusión contra la pared la pone el CSS
+//    (.piece.wall). · Contorno: casi negro y frío como el de los sprites, 4 u. por fuera y 3 o menos por dentro; en miniatura se engrosa
+//    para conservar ~1,6 px en pantalla, el mismo peso que el sprite del personaje en Base.
 import { ITEM } from '../src/game.js';
 
-const OL = '#22152F';
+const OL = '#160D22', LIT = '#FFF4DC', DUSK = '#2A1744';
+const hx = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const B = hx(b); return '#' + hx(a).map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+const made = new Set();
+let pend = '';
+// Degradado de volumen para un color (#rrggbb): 'l' lineal (rectángulos), 'r' radial (curvas). Otros rellenos quedan igual.
+function vol(f, k) {
+  if (f === OL || !/^#[0-9a-f]{6}$/i.test(f)) return f;
+  const id = k + f.slice(1).toLowerCase();
+  if (!made.has(id)) {
+    made.add(id);
+    const st = (o, c) => `<stop offset="${o}" stop-color="${c}"/>`;
+    pend += k === 'l' ? `<linearGradient id="${id}" x2="0" y2="1">${st(0, mix(f, LIT, 0.34))}${st(0.4, f)}${st(1, mix(f, DUSK, 0.4))}</linearGradient>`
+      : `<radialGradient id="${id}" cx=".36" cy=".3" r=".8" fx=".3" fy=".22">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
+  }
+  return `url(#${id})`;
+}
 const S = `stroke="${OL}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"`;
-const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${f}" ${S} ${x2}/>`;
-const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${f}" ${S} ${x2}/>`;
+// x2 va antes de S: con atributos repetidos el parser HTML se queda con el primero (antes los "stroke-width" finos se perdían).
+const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${x2} fill="${vol(f, 'l')}" ${S}/>`;
+const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
 const C = (cx, cy, r, f, x2 = '') => E(cx, cy, r, r, f, x2);
-const P = (d, f, x2 = '') => `<path d="${d}" fill="${f}" ${S} ${x2}/>`;
-const L = (d, c = OL, w = 4) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const HL = (d, w = 4) => L(d, 'rgba(255,255,255,.45)', w); // brillo
-const shadow = (cx, cy, rx) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.16}" fill="rgba(0,0,0,.28)"/>`;
+const P = (d, f, x2 = '') => `<path d="${d}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
+const L = (d, c = OL, w = 3) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const HL = (d, w = 4) => L(d, 'rgba(255,250,235,.5)', w); // brillo (del lado de la luz)
+const shadow = (cx, cy, rx) => `<ellipse cx="${cx + rx * 0.08}" cy="${cy}" rx="${rx * 1.06}" ry="${rx * 0.2}" fill="url(#cs)"/>`;
 const sparkle = (x, y, s = 6, c = '#FFF6C8') => `<path d="M${x} ${y - s}L${x + s * 0.3} ${y - s * 0.3}L${x + s} ${y}L${x + s * 0.3} ${y + s * 0.3}L${x} ${y + s}L${x - s * 0.3} ${y + s * 0.3}L${x - s} ${y}L${x - s * 0.3} ${y - s * 0.3}Z" fill="${c}"/>`;
 
 // Materiales: [principal, sombra, detalle, tela]. v15.1: tonos más separados (pino miel claro, roble rojizo, ébano casi
@@ -306,11 +332,25 @@ const ART = {
 // Trofeo chico para la vitrina.
 function cupMini(x, y, c) { return P(`M${x - 12} ${y - 28}H${x + 12}V${y - 22}Q${x + 12} ${y - 10} ${x} ${y - 8}Q${x - 12} ${y - 10} ${x - 12} ${y - 22}Z`, c, 'stroke-width="3"') + R(x - 3, y - 9, 6, 6, c, 1, 'stroke-width="2.5"') + R(x - 9, y - 4, 18, 6, c, 2, 'stroke-width="2.5"'); }
 
-const DEFS = `<defs>
-<linearGradient id="wv" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#0E3A6A" stop-opacity=".25"/></linearGradient>
+// Degradados fijos (agua, portal, aura, sombra de contacto): van una sola vez en el <svg id="art-defs"> con los de volumen.
+const DEFS = `<linearGradient id="wv" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#0E3A6A" stop-opacity=".25"/></linearGradient>
 <radialGradient id="pt"><stop offset="0" stop-color="#F4EEFF"/><stop offset=".35" stop-color="#B07CFF"/><stop offset="1" stop-color="#3A1A7A"/></radialGradient>
 <linearGradient id="au" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3DDC97" stop-opacity=".8"/><stop offset=".5" stop-color="#5CC8FF" stop-opacity=".7"/><stop offset="1" stop-color="#B07CFF" stop-opacity=".8"/></linearGradient>
-</defs>`;
+<radialGradient id="cs"><stop offset="0" stop-color="#0E0618" stop-opacity=".62"/><stop offset=".5" stop-color="#0E0618" stop-opacity=".36"/><stop offset="1" stop-color="#0E0618" stop-opacity="0"/></radialGradient>`;
+// Vuelca al documento los degradados nuevos (en Node no hay documento: solo se arma el texto).
+function flush() {
+  if (!pend || typeof document === 'undefined' || !document.body) return;
+  let d = document.getElementById('art-defs');
+  if (!d) {
+    d = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    d.id = 'art-defs'; d.setAttribute('aria-hidden', 'true'); d.setAttribute('focusable', 'false');
+    d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+    d.innerHTML = `<defs>${DEFS}</defs>`;
+    document.body.prepend(d);
+  }
+  d.firstChild.insertAdjacentHTML('beforeend', pend);
+  pend = '';
+}
 
 // Objetos planos (se ven desde arriba): al rotar se giran de verdad.
 const FLAT = new Set(['alfombra', 'alfombra_gala', 'estanque', 'mapa_ciudad']);
@@ -341,7 +381,12 @@ function body(id, side = false) {
 // Markup SVG del objeto (o null para pisos/paredes, que son patrones). rot: 0..3.
 // 1 y 3: los cuadrados se espejan; los largos usan su vista lateral (o una versión escorzada); los planos giran.
 const cache = new Map();
-export function artMarkup(id, rot = 0) {
+export function artMarkup(id, rot = 0, thumb = false) {
+  if (thumb) { // Miniatura: mismo dibujo con trazos más gruesos (a 32 px un objeto de 3 casillas perdía el contorno).
+    const k = `t|${id}|${rot}`;
+    if (!cache.has(k)) { const m = artMarkup(id, rot), f = TH[Math.max(...ITEM[id].size)] ?? 2.4; cache.set(k, m && m.replace(/stroke-width="([\d.]+)"/g, (_, w) => `stroke-width="${+(w * f).toFixed(1)}"`)); }
+    return cache.get(k);
+  }
   const def = ITEM[id];
   if (!def || def.cat === 'piso' || def.cat === 'pared') return null;
   const [w, hh] = def.size, odd = rot % 2 === 1, square = w === hh, flat = FLAT.has(id);
@@ -367,14 +412,16 @@ export function artMarkup(id, rot = 0) {
     }
     inner = b && (v === 'sm' ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
   }
-  const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${DEFS}${inner}</svg>` : null;
+  const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${inner}</svg>` : null;
   cache.set(key, out);
+  flush();
   return out;
 }
+const TH = { 1: 1.3, 2: 1.9, 3: 2.4 };
 
 // Elemento listo para insertar (contenedor con el SVG). Si no hay dibujo, devuelve null.
 export function artEl(id, cls = 'art', rot = 0) {
-  const m = artMarkup(id, rot);
+  const m = artMarkup(id, rot, cls === 'sw-art');
   if (!m) return null;
   const el = document.createElement('span');
   el.className = cls;

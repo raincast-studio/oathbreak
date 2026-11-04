@@ -66,7 +66,9 @@ function piece(p, opts, under) {
   const z = isFlat(p.id) ? 1 : 2 * (p.y + hh) + (p.on ? 1 : 0);
   const style = { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${hh}`, '--z': z };
   if (under) style['--lift'] = (1 - surfaceTop(under.id, under.rot, p.y - under.y)).toFixed(2);
-  const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
+  // v17: lo que toca la pared (fila 0, en el piso, con alto) proyecta oclusión sobre la junta piso-pared (CSS .wall).
+  const wall = !p.on && p.y === 0 && !isFlat(p.id) ? '.wall' : '';
+  const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${wall}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
     style, title: def.name,
   }, art(p.id, 'p-art', p.rot) ?? h('span.p-label', initials(def.name)));
   if (el.firstChild?.classList.contains('p-art')) el.classList.add('has-art');
