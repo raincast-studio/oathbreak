@@ -5,6 +5,7 @@ import { h, toast, sprite } from './kit.js';
 import { errText } from './errors.js';
 import { signInSheet, pending } from './account.js';
 import * as cloud from './cloud.js';
+import { legalLink, TERMS_VERSION } from './legal.js';
 
 const SIDES = {
   hero: { name: 'Héroes', oath: 'Juro proteger la ciudad', blurb: 'Patrullás, escoltás y rescatás. Cazás villanos y tu guarida es un cuartel de trofeos.' },
@@ -40,7 +41,7 @@ export function showOnboarding(game, onDone) {
     };
     const submit = (e) => {
       e.preventDefault();
-      const r = game.newCharacter(input.value, faction);
+      const r = game.newCharacter(input.value, faction, { terms: TERMS_VERSION }); // v17: clickwrap (texto debajo del botón)
       if (!r.ok) { help.textContent = errText(r.error); help.classList.add('err-text'); input.focus(); return; }
       root.classList.add('out');
       setTimeout(() => { root.remove(); onDone(); toast(`¡Bienvenido, ${game.state().player?.name ?? input.value.trim()}!`, 'prize'); }, 250);
@@ -52,6 +53,8 @@ export function showOnboarding(game, onDone) {
       h('div.name-row', input, h('button.btn.ghost', { type: 'button', 'aria-label': 'Nombre al azar', onclick: roll }, 'Al azar')),
       help,
       h('button.btn.big' + (faction === 'hero' ? '.gold' : '.crimson'), { type: 'submit' }, SIDES[faction].oath),
+      h('p.terms-note', 'Al jurar lealtad aceptás los ', legalLink('terminos', 'Términos'), ' y la ', legalLink('privacidad', 'Política de privacidad'),
+        ' y confirmás que tenés 13 años o más.'),
       h('button.link-btn', { type: 'button', onclick: pickStep }, 'Cambiar de bando')));
     input.focus();
   };
