@@ -267,9 +267,15 @@ const ART = {
     + R(26, 50, 248, 68, '#F1E1B8', 6) + P('M50 70Q70 56 90 66Q96 84 76 92Q56 94 50 80Z', '#C9B07A', 'stroke-width="3"')
     + P('M130 60Q170 54 186 70Q190 92 160 98Q130 96 128 80Z', '#C9B07A', 'stroke-width="3"') + P('M210 84Q236 74 252 86Q246 104 222 104Z', '#C9B07A', 'stroke-width="3"')
     + L('M96 80Q120 70 132 76', '#E2364B', 3) + `<path d="M234 64l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#E2364B"/>` + R(8, 120, 284, 12, WOOD[1], 4),
-  armadura_vieja: () => shadow(50, 196, 30) + R(30, 170, 40, 22, '#6E6680', 4) + R(36, 120, 12, 52, '#7E7690', 3) + R(52, 120, 12, 52, '#7E7690', 3)
-    + P('M26 64H74L70 124H30Z', '#8E86A0') + R(14, 64, 16, 48, '#7E7690', 6) + R(70, 64, 16, 48, '#7E7690', 6) + E(50, 40, 20, 24, '#8E86A0')
-    + R(36, 36, 28, 6, '#22152F', 2) + L('M50 16V6', '#E2364B', 6) + `<circle cx="70" cy="86" r="6" fill="#B06A3A" opacity=".8"/><circle cx="38" cy="100" r="5" fill="#B06A3A" opacity=".7"/>` + HL('M36 72V110'),
+  // v17: armadura oxidada con rodilleras, visera de rejilla, penacho raído, óxido corrido, telaraña y escudo abollado apoyado.
+  armadura_vieja: () => shadow(50, 196, 36) + R(30, 172, 40, 20, '#5C5670', 4) + R(36, 122, 12, 52, '#7E7690', 3) + R(52, 122, 12, 52, '#7E7690', 3)
+    + R(33, 144, 17, 9, '#6E6680', 3, 'stroke-width="3"') + R(50, 144, 17, 9, '#6E6680', 3, 'stroke-width="3"') + P('M26 64H74L70 124H30Z', '#8E86A0')
+    + L('M30 94H70M50 68V120', '#6E6680', 2.5) + R(12, 62, 18, 50, '#7E7690', 8) + R(70, 62, 18, 50, '#7E7690', 8) + E(50, 40, 20, 24, '#8E86A0')
+    + R(34, 35, 32, 8, OL, 3) + L('M38 48H62M38 54H62', '#6E6680', 2.5) + P('M50 17Q40 4 54 2Q50 8 61 6Q54 12 53 18Z', '#B0485A', 'stroke-width="3"')
+    + '<path d="M66 72q7 7 2 15q-4 5 -1 13M36 102q-4 6 0 12" stroke="#B06A3A" stroke-width="5" stroke-linecap="round" opacity=".75" fill="none"/>'
+    + '<circle cx="74" cy="92" r="4" fill="#B06A3A" opacity=".8"/><circle cx="56" cy="160" r="3.5" fill="#B06A3A" opacity=".7"/>'
+    + E(82, 162, 15, 21, '#8A6A4A') + C(82, 162, 5, '#C9A13B', 'stroke-width="3"') + L('M74 150L80 156M88 172L84 168', '#5E3A1D', 2.5)
+    + L('M6 8Q16 14 14 28M6 8Q22 10 28 4M6 8L22 22', 'rgba(255,255,255,.4)', 1.5) + HL('M36 72V110'),
   piano: () => shadow(150, 196, 130) + R(40, 150, 14, 44, '#1A1426', 4) + R(246, 150, 14, 44, '#1A1426', 4) + P('M20 40Q20 12 120 18L280 40V150H20Z', '#2A2140')
     + R(20, 104, 260, 34, '#F4EEFF', 3) + Array.from({ length: 12 }, (_, i) => (i % 7 === 2 || i % 7 === 6) ? '' : R(38 + i * 20, 104, 10, 20, '#1A1426', 1, 'stroke-width="2"')).join('')
     + L('M40 104V138M60 104V138M80 104V138M100 104V138M120 104V138M140 104V138M160 104V138M180 104V138M200 104V138M220 104V138M240 104V138M260 104V138', '#B8AFC8', 1.5)
@@ -346,8 +352,10 @@ const ART = {
   // Exclusivos
   farol_amistad: () => lampGlow(50, 50, 38, '#FF8FA8') + shadow(50, 94, 22) + R(44, 4, 12, 10, '#C9A13B', 3) + P('M28 24L50 12L72 24Z', '#C9A13B')
     + R(28, 24, 44, 52, 'rgba(255,143,168,.5)') + P('M50 66Q30 52 38 42Q46 36 50 46Q54 36 62 42Q70 52 50 66Z', '#E2364B', 'stroke-width="3"') + R(24, 74, 52, 10, '#C9A13B', 3),
-  trofeo_racha: () => lampGlow(50, 30, 32, '#FF7A2E') + shadow(50, 94, 24) + R(26, 76, 48, 16, '#5C5670', 4) + P('M32 76L38 48H62L68 76Z', '#8A8296')
-    + flame(50, 40, 2, '#FF7A2E', '#FFC93C') + R(36, 80, 28, 8, '#FFC93C', 2, 'stroke-width="2.5"'),
+  // v17: llama de la constancia más grande, en un pebetero con aro dorado y marcas de la racha.
+  trofeo_racha: () => lampGlow(50, 34, 38, '#FF7A2E') + shadow(50, 94, 26) + R(24, 78, 52, 14, '#5C5670', 4) + P('M28 79L36 52H64L72 79Z', '#8A8296')
+    + L('M40 60V72M46 60V72M52 60V72M58 60V72M62 58L37 74', '#FFC93C', 2.5) + E(50, 52, 22, 6, '#FFC93C') + flame(50, 44, 2.3, '#FF5A2E', '#FFC93C')
+    + flame(50, 42, 1.1, '#FFB23C', '#FFF1B0') + R(36, 82, 28, 7, '#FFC93C', 2, 'stroke-width="2.5"') + sparkle(80, 18, 6) + sparkle(20, 30, 4),
   trofeo_campeon: () => cup('#FFC93C', '#8E44F0', `<path d="M50 28l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#FFF1B0"/>` + sparkle(80, 12, 6) + sparkle(20, 20, 4)),
   marco_honor: () => lampGlow(50, 46, 40, '#FFE7A8') + R(8, 8, 84, 84, '#FFC93C', 8) + R(18, 18, 64, 64, '#3A2B5C', 4) + P('M50 26L56 42L72 42L60 52L64 68L50 58L36 68L40 52L28 42L44 42Z', '#FFC93C', 'stroke-width="3"')
     + [[8, 8], [92, 8], [8, 92], [92, 92]].map(([x, y]) => C(x, y, 7, '#E2364B', 'stroke-width="3"')).join('') + sparkle(80, 22, 6),
@@ -360,9 +368,13 @@ const ART = {
     + '<path d="M50 8L64 31L50 56L36 31Z" fill="#fff" opacity=".22"/>' + L('M36 31H64M50 8V56', 'rgba(255,255,255,.6)', 2)
     + '<path d="M50 12L59 30H50Z" fill="#fff" opacity=".7"/>' + L('M83 40A33 11 0 0 1 17 40', '#FFF1B0', 3.5) + C(21, 45, 3.5, '#FFF1B0', 'stroke-width="2"')
     + C(74, 49, 3, '#3DDC97', 'stroke-width="2"') + sparkle(80, 16, 6) + sparkle(18, 22, 5, '#BDE8FF') + sparkle(86, 68, 4),
-  temp_estatua: () => shadow(50, 196, 36) + R(16, 160, 68, 32, '#8A8296', 4) + R(22, 150, 56, 14, '#A69EB3', 4) + P('M34 150L38 92H62L66 150Z', '#C9C2D6')
-    + P('M30 96Q50 80 70 96L66 106H34Z', '#B8AFC8') + C(50, 64, 18, '#C9C2D6') + L('M70 92L88 40', OL, 8) + L('M70 92L88 40', '#D9D3E3', 4) + flame(88, 36, 0.8, '#B07CFF', '#F4EEFF')
-    + L('M24 176H76', '#FFC93C', 4) + HL('M42 100V144'),
+  // v17: estatua de temporada con capa, laureles, antorcha de aurora y placa del pase.
+  temp_estatua: () => lampGlow(84, 40, 26, '#5CC8FF') + shadow(50, 196, 38) + R(14, 158, 72, 34, '#5C5670', 5) + R(20, 148, 60, 14, '#8A8296', 4)
+    + `<rect x="32" y="166" width="36" height="14" rx="3" fill="url(#au)" ${S}/>` + P('M28 150Q24 112 36 96H64Q76 112 72 150Z', '#A69EB3')
+    + P('M37 150L40 98H60L63 150Z', '#D9D3E3') + P('M30 100Q50 86 70 100L66 110H34Z', '#C9C2D6') + P('M40 102L62 128L57 134L37 108Z', 'url(#au)', 'stroke-width="3"')
+    + C(50, 72, 17, '#E4DEEE') + L('M36 66Q50 52 64 66', '#3E9B6E', 3) + [[36, 64], [42, 57], [58, 57], [64, 64]].map(([x, y]) => E(x, y, 4.5, 2.6, '#3DDC97', 'stroke-width="2"')).join('')
+    + L('M68 104L86 46', OL, 9) + L('M68 104L86 46', '#C9A13B', 5) + R(80, 42, 12, 8, '#FFC93C', 2, 'stroke-width="2.5"') + flame(86, 38, 1.1, '#5CC8FF', '#E8FFF4')
+    + HL('M43 106V144') + sparkle(18, 44, 6, '#BDE8FF') + sparkle(84, 118, 5),
   temp_portal: () => `<circle cx="100" cy="100" r="80" fill="#8E44F0" opacity=".2"/>` + shadow(100, 192, 80) + P('M30 190V90Q30 20 100 20Q170 20 170 90V190Z', '#5C5670')
     + P('M48 190V96Q48 40 100 40Q152 40 152 96V190Z', '#2A1458') + `<ellipse cx="100" cy="116" rx="44" ry="66" fill="url(#pt)"/>`
     + L('M100 70Q130 90 110 120Q86 140 100 160', '#E8D9FF', 4) + L('M80 90Q96 110 84 134', '#B07CFF', 3)
@@ -370,8 +382,12 @@ const ART = {
   // Tienda de renombre
   farol_aurora: () => lampGlow(50, 50, 40, '#3DDC97') + shadow(50, 94, 22) + R(44, 4, 12, 10, '#5C5670', 3) + P('M28 24L50 12L72 24Z', '#5C5670')
     + `<rect x="28" y="24" width="44" height="52" fill="url(#au)" ${S}/>` + sparkle(50, 50, 9, '#F4EEFF') + R(24, 74, 52, 10, '#5C5670', 3),
-  busto: () => shadow(50, 94, 26) + R(26, 78, 48, 14, '#8A8296', 4) + R(32, 70, 36, 10, '#A69EB3', 3) + P('M20 72Q24 48 50 48Q76 48 80 72Z', '#C9C2D6')
-    + C(50, 32, 18, '#D9D3E3') + P('M32 26Q36 8 50 10Q66 8 68 26Q60 18 50 20Q40 18 32 26Z', '#B8AFC8', 'stroke-width="3"') + L('M44 36Q50 40 56 36', OL, 2.5) + HL('M38 24Q42 18 48 16'),
+  // v17: busto de mármol con laureles, sobre pedestal oscuro con placa dorada.
+  busto: () => shadow(50, 94, 28) + R(28, 74, 44, 20, '#3A2B5C', 4) + R(24, 68, 52, 9, '#4A3B6E', 3) + R(40, 80, 20, 7, '#FFC93C', 2, 'stroke-width="2"')
+    + P('M20 70Q22 48 50 46Q78 48 80 70Z', '#E4DEEE') + L('M30 62Q40 56 46 64M70 62Q60 56 54 64', '#B8AFC8', 2.5) + C(50, 31, 18, '#EFEAF6')
+    + P('M32 27Q36 9 50 11Q66 9 68 27Q60 19 50 21Q40 19 32 27Z', '#D9D3E3', 'stroke-width="3"') + L('M33 24Q50 12 67 24', '#3E9B6E', 2.5)
+    + [[34, 22], [41, 16], [59, 16], [66, 22]].map(([x, y]) => E(x, y, 4.5, 2.6, '#3DDC97', 'stroke-width="2"')).join('')
+    + L('M41 30H46M54 30H59', OL, 2.2) + L('M45 38Q50 41 55 38', OL, 2.2) + HL('M37 34Q38 26 44 22', 3) + sparkle(82, 22, 5),
   // v17: banco de plaza de listones verdes con hierro fundido en volutas, placa de renombre y una paloma de visita.
   banco_plaza: () => shadow(100, 95, 88) + R(30, 8, 8, 56, IRON, 3) + R(162, 8, 8, 56, IRON, 3)
     + R(24, 12, 152, 12, '#3E9B6E', 5) + R(24, 28, 152, 12, '#3E9B6E', 5) + R(24, 44, 152, 10, '#3E9B6E', 4) + R(88, 30, 24, 9, '#FFC93C', 2, 'stroke-width="2.5"')

@@ -720,6 +720,9 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .r-epico .p-art svg, .r-epico .sw-art svg { filter: drop-shadow(-.7px -.7px 0 rgba(255,244,220,.5)) drop-shadow(0 0 3px rgba(176,124,255,.75)); }
 .r-legendario .p-art svg, .r-legendario .sw-art svg { filter: drop-shadow(-.7px -.7px 0 rgba(255,250,215,.65)) drop-shadow(0 0 3px rgba(255,201,60,.8)); }
 .piece.wall { background: radial-gradient(80% 42% at 56% 0, rgba(10,4,20,.55), rgba(10,4,20,.2) 55%, transparent) no-repeat; }
+/* Rareza a la distancia: charco de luz más firme y escalonado (común nada · raro azul · épico violeta · legendario oro). */
+.piece.r-raro { --halo: rgba(79,163,255,.5); } .piece.r-epico { --halo: rgba(176,124,255,.62); } .piece.r-legendario { --halo: rgba(255,201,60,.7); }
+.piece.has-art.r-epico::before, .piece.has-art.r-legendario::before { left: -4%; right: -4%; height: min(36%, 22px); }
 /* Sello de facción en miniaturas (inventario, tiendas, regalos): forma y color distintos para leerse de un vistazo. */
 .swatch.f-hero.has-art { box-shadow: inset 0 -12px 10px -6px rgba(255,201,60,.5); }
 .swatch.f-villain.has-art { box-shadow: inset 0 -12px 10px -6px rgba(226,54,75,.6); }
