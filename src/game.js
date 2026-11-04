@@ -13,6 +13,7 @@ import { hasKey, isInt, isPosInt } from './economy.js';
 import { track, touchSession, setTelemetrySink } from './telemetry.js';
 import * as So from './social.js';
 import * as Se from './season.js';
+import * as Mod from './moderation.js';
 
 const err = (error, extra) => ({ ok: false, error, ...extra });
 const clone = (x) => (x === undefined ? x : structuredClone(x));
@@ -94,11 +95,13 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       return clone(result);
     },
 
-    newCharacter(name, faction) {
+    // v17: el nombre pasa por la moderación (src/moderation.js). terms: versión de los Términos aceptada (clickwrap).
+    newCharacter(name, faction, { terms } = {}) {
       if (saveIssue) return err(saveIssue === 'future' ? 'guardado_de_version_futura' : 'guardado_ilegible');
       if (faction !== 'hero' && faction !== 'villain') return err('faccion_invalida');
-      name = String(name ?? '').trim().slice(0, 16);
-      if (name.length < 3) return err('nombre_corto');
+      const vn = Mod.validateName(name);
+      if (!vn.ok) return err(vn.error);
+      name = vn.name;
       const now = clock.now();
       world = {
         version: CFG.saveVersion,
@@ -108,7 +111,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       };
       S.createBots(world, now);
       const p = S.addPlayer(world, { id: 'p0', name, faction, now });
-      track(world, p, 'signup', { faction }, now);
+      if (typeof terms === 'string' && /^[\w.-]{1,20}$/.test(terms)) p.consent = { terms, ts: now };
+      track(world, p, 'signup', { faction, ...(p.consent && { terms }) }, now);
       touchSession(world, p, now);
       persist();
       return { ok: true };
@@ -250,7 +254,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       inventory: p.lair.inventory.map((i) => ({ ...i, item: ITEM[i.id], recycle: Lr.sellValue(i, now), ...(i.gifted && { sellableAt: Lr.giftSellableAt(i) }) })),
       prestige: Lr.prestige(p),
       visits: Lr.visitStatus(p, now),
-      guestbook: p.lair.guestbook,
+      guestbook: p.lair.guestbook.filter((g) => !p.muted?.includes(g.id)), // v17: sin firmas de silenciados
     })),
     upgradeBuilding: (k) => command((p, now) => {
       const r = Lr.upgradeBuilding(p, k, now);
@@ -282,8 +286,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     friends: () => query((p, now) => ({
       ok: true, ...So.giftStatus(p, now), max: CFG.social.maxFriends,
       list: (p.friends ?? []).filter((id) => world.entities[id]).map((id) => { const f = world.entities[id]; return { id, name: f.name, faction: f.faction, level: f.level, giftedToday: So.giftStatus(p, now).sentTo.includes(id) }; }),
-      giftbox: (p.giftbox ?? []).map((g) => ({ ...g, name: ITEM[g.id].name })),
-      requests: So.pendingIn(p, now).filter((r) => world.entities[r.id]).map(({ id, name, faction, level, ts }) => ({ id, name, faction, level, ts })),
+      giftbox: (p.giftbox ?? []).filter((g) => !p.muted?.includes(g.from)).map((g) => ({ ...g, name: ITEM[g.id].name })),
+      requests: So.pendingIn(p, now).filter((r) => world.entities[r.id] && !p.muted?.includes(r.id)).map(({ id, name, faction, level, ts }) => ({ id, name, faction, level, ts })),
       sent: So.pendingOut(p, now).filter((r) => world.entities[r.id]).map(({ id, ts }) => ({ id, ts, name: world.entities[id].name, faction: world.entities[id].faction, level: world.entities[id].level })),
     })),
     // Amistad por solicitud: el otro tiene que aceptar (los bots contestan en 1–6 h).
@@ -293,7 +297,32 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     cancelRequest: (id) => command((p) => { const f = ent(id); return f ? So.cancelRequest(p, f) : err('jugador_invalido'); }),
     removeFriend: (id) => command((p) => So.removeFriend(p, id, ent(id))),
     sendGift: (id) => command((p, now) => { const f = ent(id); return f ? So.sendGift(world, p, f, now) : err('jugador_invalido'); }),
-    openGifts: () => command((p) => So.openGifts(p)),
+    openGifts: () => command((p) => { if (p.muted?.length) p.giftbox = (p.giftbox ?? []).filter((g) => !p.muted.includes(g.from)); return So.openGifts(p); }),
+
+    // v17 · Confianza. Reportar: valida y devuelve el reporte compacto (la interfaz lo encola y lo manda a la nube).
+    reportPlayer: (id, reason, note, where, ref) => command((p, now) => {
+      const e = ent(id);
+      if (!e || id === p.id) return err('jugador_invalido');
+      const r = Mod.makeReport({ target: e, reason, note, where, ref, now });
+      if (r.ok) track(world, p, 'report', { reason: r.report.r, where: r.report.w }, now);
+      return r;
+    }),
+    // Silenciar: oculta sus solicitudes, regalos y firmas (y rechaza la solicitud pendiente). on=false lo quita.
+    mute: (id, on = true) => command((p) => {
+      const e = ent(id);
+      if (!e || id === p.id) return err('jugador_invalido');
+      const list = (p.muted ?? []).filter((x) => x !== id);
+      if (on) {
+        if (list.length >= Mod.MUTE_MAX) list.shift();
+        list.push(id);
+        So.rejectFriend(p, id); // si no había solicitud, no hace nada
+      }
+      p.muted = list;
+      return { ok: true, muted: !!on };
+    }),
+    muted: () => query((p) => ({ ok: true, list: (p.muted ?? []).filter((id) => world.entities[id]).map((id) => ({ id, name: world.entities[id].name, faction: world.entities[id].faction })) })),
+    // Descargar mis datos: el guardado completo, tal cual (JSON).
+    exportData: () => (world ? JSON.stringify(world) : null),
 
     // Temporada
     season: () => query((p, now) => ({ ok: true, ...Se.seasonStatus(p, now) })),

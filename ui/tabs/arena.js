@@ -4,6 +4,7 @@ import { h, icon, num, clock, openSheet, closeSheet, avatar } from '../kit.js';
 import { errText } from '../errors.js';
 import { startFight } from '../fight.js';
 import { segmented } from './guarida.js';
+import { playerMenuBtn } from '../safety.js'; // v17: Reportar · Silenciar
 export const title = 'Arena';
 
 const UI = { sub: 'rivales' };
@@ -29,7 +30,7 @@ export function render(ctx) {
         h('span.muted', `Nv ${t.level}${note ? ` · ${note}` : ''}`),
         t.block && t.block !== 'en_mision' ? h('span.t-block', errText(t.block))
           : h('span.riv-meta', h('span.loot.tnum', `Botín ${num(t.loot)} oro`))),
-      extra,
+      extra ?? playerMenuBtn(ctx, t, 'arena'),
       h('button.atk', { type: 'button', disabled: blocked, 'aria-label': `${cta === 'VENGAR' ? 'Vengarte de' : 'Atacar a'} ${t.name}, 1 de energía`,
         onclick: (e) => startFight(ctx, e.currentTarget, (g) => g.attack(t.id)) }, cta, h('small', '1 energía')));
   };

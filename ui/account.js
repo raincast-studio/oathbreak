@@ -2,6 +2,8 @@
 import * as cloud from './cloud.js';
 import { h, icon, toast, openSheet, closeSheet } from './kit.js';
 import { errText } from './errors.js';
+import { legalLink } from './legal.js';
+import { mutedCard, reportQueue } from './safety.js';
 
 const NAG = 'oathbreak.cloud.nag';
 const DAY = 86_400_000;
@@ -103,8 +105,9 @@ export function signInSheet({ fromGame = true, resume } = {}) {
   });
 }
 
-// Tarjeta de la sección Cuenta (Personaje).
-export function accountCard(ctx) {
+// Tarjeta de la sección Cuenta (Personaje). v17: devuelve [Cuenta, Tus datos] (h() aplana listas).
+export function accountCard(ctx) { return [accountMain(ctx), dataCard(ctx)]; }
+function accountMain(ctx) {
   const a = cloud.account();
   const ago = (t) => { if (!t) return 'todavía no'; const m = Math.floor((Date.now() - t) / 60_000); return m < 1 ? 'recién' : m < 60 ? `hace ${m} min` : `hace ${Math.floor(m / 60)} h`; };
   const sync = a.status === 'offline' ? 'Sin conexión: se guarda en este dispositivo y se sube cuando vuelva.'
@@ -133,4 +136,69 @@ export function accountCard(ctx) {
         const r = await cloud.signOut();
         if (!r.ok) { e.currentTarget.disabled = false; toast(errText(r.error), 'err'); }
       } }, 'Cerrar sesión en este dispositivo'));
+}
+
+/* ---------- v17 · Tus datos: descargar, silenciados, legales y borrar la cuenta ---------- */
+function dataCard(ctx) {
+  const a = cloud.account();
+  return h('section.card.danger-zone',
+    h('div.sec-head', h('h2.display', 'Tus datos')),
+    a.deletePending ? h('p.fee-alert', icon('shield', 18), h('span', 'Falta borrar la copia de la nube: se borra sola cuando vuelva la conexión.')) : null,
+    h('p.muted', 'Bajate una copia de tu partida o borrá tu cuenta cuando quieras.'),
+    h('button.btn.ghost.wide', { type: 'button', onclick: () => downloadData(ctx) }, 'Descargar mis datos'),
+    mutedCard(ctx),
+    h('div.safety-links', legalLink('terminos', 'Términos'), legalLink('privacidad', 'Privacidad')),
+    h('button.btn.ghost.wide.danger', { type: 'button', onclick: () => deleteSheet(ctx) }, 'Borrar mi cuenta'));
+}
+
+// JSON con la partida completa, la cuenta (email si está vinculada) y los reportes que todavía no se enviaron.
+function downloadData(ctx) {
+  const a = cloud.account();
+  const raw = ctx.game.exportData();
+  const data = {
+    juego: 'OATHBREAK', exportado: new Date().toISOString(),
+    cuenta: { tipo: a.guest ? 'invitado' : 'vinculada', email: a.email, creada: a.createdAt ? new Date(a.createdAt).toISOString() : null },
+    partida: raw ? JSON.parse(raw) : null,
+    reportesSinEnviar: reportQueue(),
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  const link = h('a', { href: url, download: `oathbreak-mis-datos-${data.exportado.slice(0, 10)}.json`, hidden: true });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  toast('Listo: se descargó un archivo con tus datos.');
+}
+
+// Doble confirmación: 1) qué se borra y botón; 2) escribir BORRAR.
+function deleteSheet(ctx) {
+  const a = cloud.account();
+  openSheet({ title: 'Borrar mi cuenta', body: h('div.stack',
+    h('p', 'Se borra para siempre y no se puede deshacer:'),
+    h('ul.del-list',
+      h('li', 'Tu personaje, su progreso, su oro y su guarida.'),
+      h('li', 'Tus amigos, regalos e informes de esta partida.'),
+      a.guest ? h('li', 'La copia guardada en la nube.') : h('li', 'Tu cuenta vinculada a ', h('strong', a.email), ' y la copia en la nube.')),
+    h('p.muted.hint', 'Si querés quedarte con una copia, primero tocá "Descargar mis datos".'),
+    h('button.btn.crimson.wide', { type: 'button', onclick: () => confirmSheet(ctx) }, 'Quiero borrar mi cuenta'),
+    h('button.link-btn', { type: 'button', onclick: () => closeSheet() }, 'Mejor no')) });
+}
+function confirmSheet(ctx) {
+  const input = h('input.name-input.del-input', { type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: false, 'aria-label': 'Escribí BORRAR', placeholder: 'BORRAR' });
+  const btn = h('button.btn.crimson.wide', { type: 'submit', disabled: true }, 'Borrar para siempre');
+  const msg = h('p.muted', { role: 'status' });
+  input.addEventListener('input', () => { btn.disabled = input.value.trim().toUpperCase() !== 'BORRAR'; });
+  const form = h('form.stack', { onsubmit: async (e) => {
+    e.preventDefault();
+    if (input.value.trim().toUpperCase() !== 'BORRAR') { msg.textContent = errText('confirmar_borrado'); msg.classList.add('err-text'); return; }
+    btn.disabled = true; input.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.textContent = 'Borrando…';
+    const online = cloud.account().status === 'online';
+    msg.textContent = online ? 'Borrando tu cuenta…' : 'Sin conexión: borramos lo de este dispositivo y la nube se borra al reconectar.';
+    await cloud.deleteAccount(); // recarga la página
+  } },
+    h('p', 'Para confirmar, escribí ', h('strong', 'BORRAR'), '.'),
+    input, btn, msg,
+    h('button.link-btn', { type: 'button', onclick: () => closeSheet() }, 'Cancelar'));
+  openSheet({ title: '¿Seguro?', body: form });
+  input.focus();
 }

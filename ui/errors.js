@@ -24,6 +24,10 @@ export const ERR = {
   codigo_invalido: 'El código no es correcto o ya venció. Pedí uno nuevo.', demasiados_intentos: 'Demasiados intentos. Esperá unos minutos y probá de nuevo.',
   sin_cuenta: 'No hay ningún héroe con ese email.', sin_conexion: 'Sin conexión con el servidor. Tu partida sigue guardada en este dispositivo.',
   error_nube: 'El servidor no respondió. Probá de nuevo en un rato.', sin_guardar: 'Todavía hay cambios sin subir. Esperá unos segundos.',
+  // v17 · Confianza (moderación, reportes, cuenta). Los textos nunca repiten la palabra bloqueada.
+  nombre_no_permitido: 'Ese nombre no se puede usar en OATHBREAK. Probá con otro o tocá "Al azar".',
+  jugador_invalido: 'No encontramos a ese jugador.', motivo_invalido: 'Elegí un motivo.', nota_invalida: 'Revisá la nota.',
+  confirmar_borrado: 'Para confirmar, escribí BORRAR.',
 };
 // Cualquier código sin texto propio cae en un mensaje genérico (nunca se muestra el código crudo).
 export const errText = (code) => ERR[code] ?? 'No se pudo hacer. Probá de nuevo.';

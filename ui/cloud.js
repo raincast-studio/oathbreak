@@ -6,11 +6,16 @@ import { SAVE_KEY, BACKUP_KEY } from '../src/core.js';
 
 const URL = 'https://ymxjkmmtogjfnoclwdlm.supabase.co';
 const KEY = 'sb_publishable_DdEKnnhYSm_58cLubkPnKg_cdDJAVtO';
-const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const LIB = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm'; // v17: versión fija (antes @2 flotante)
 const META = 'oathbreak.cloud';
 const PUSH_DELAY = 10_000, PUSH_EVERY = 60_000, INIT_TIMEOUT = 6_000;
 
 let base, client = null, user = null, timer = null, pushing = false;
+// v17: borrado de cuenta. DEL marca que falta borrar en la nube (se completa al reconectar); wiping frena escrituras
+// del guardado entre el borrado local y la recarga.
+const DEL = 'oathbreak.cloud.delete';
+let wiping = false;
+const delPending = () => { try { return !!base?.getItem(DEL); } catch { return false; } };
 const A = { status: 'loading', lastSync: 0, error: null };
 const listeners = new Set();
 const emit = () => { for (const f of listeners) try { f(); } catch { /* nada */ } };
@@ -30,6 +35,7 @@ export function account() {
     createdAt: user ? Date.parse(user.created_at) : null,
     lastSync: A.lastSync, dirty: base ? readMeta().dirty : false,
     error: A.error ?? null, // 31/10: el último error al subir (se muestra; antes fallaba en silencio)
+    deletePending: delPending(),
   };
 }
 
@@ -38,7 +44,7 @@ function wrap(s) {
   const touch = () => { const m = readMeta(); if (!m.dirty) writeMeta({ ...m, dirty: true }); schedule(PUSH_DELAY); };
   return {
     getItem: (k) => s.getItem(k),
-    setItem: (k, v) => { s.setItem(k, v); if (k === SAVE_KEY) touch(); },
+    setItem: (k, v) => { if (wiping && k.startsWith('oathbreak.')) return; s.setItem(k, v); if (k === SAVE_KEY) touch(); },
     removeItem: (k) => { s.removeItem(k); if (k === SAVE_KEY) touch(); },
   };
 }
@@ -67,6 +73,11 @@ async function connect() {
     client.auth.onAuthStateChange((_e, s) => { if (s?.user) { user = s.user; emit(); } });
   }
   let { data: { session } } = await client.auth.getSession();
+  if (session && delPending()) { // v17: borrado pendiente: primero se borra la cuenta vieja; si no se puede, no se baja ni se sube nada
+    user = session.user;
+    if (!(await finishDelete())) { A.status = 'online'; A.error = null; return; }
+    session = null;
+  } else if (!session && delPending()) base.removeItem(DEL);
   if (!session) {
     const r = await client.auth.signInAnonymously();
     if (r.error) throw r.error;
@@ -84,7 +95,7 @@ export async function init(storage) {
   base = storage;
   try { await withTimeout(connect(), INIT_TIMEOUT); }
   catch (e) { A.status = 'offline'; A.error = String(e?.message ?? e); }
-  setInterval(() => (A.status === 'online' ? push() : retry()), PUSH_EVERY);
+  setInterval(() => (A.status === 'online' && !delPending() ? push() : retry()), PUSH_EVERY);
   document.addEventListener('visibilitychange', () => { if (document.hidden) push(); });
   if (readMeta().dirty) schedule(2_000);
   emit();
@@ -102,7 +113,7 @@ async function retry() {
 }
 
 export async function push() {
-  if (A.status !== 'online' || pushing || !user) return;
+  if (A.status !== 'online' || pushing || !user || delPending()) return;
   const m = readMeta();
   if (!m.dirty) return;
   const raw = base.getItem(SAVE_KEY);
@@ -122,6 +133,47 @@ export async function push() {
     } else A.error = r.error;
   } catch (e) { A.error = String(e?.message ?? e); }
   finally { pushing = false; emit(); }
+}
+
+// v17 · Confianza: RPC genérica (submit_report, delete_my_account). Sin conexión, sin la función o con error → { ok: false }.
+export async function rpc(name, args) {
+  if (A.status !== 'online' || !client || !user) return { ok: false, error: 'sin_conexion' };
+  try {
+    const { data, error } = await withTimeout(client.rpc(name, args), 8_000);
+    return error || data?.ok === false ? { ok: false, error: error?.code ?? data?.error ?? 'error_nube' } : { ok: true, data };
+  } catch { return { ok: false, error: 'error_nube' }; }
+}
+
+/* ---------- v17: borrar mi cuenta ---------- */
+// Llama a delete_my_account() (borra la fila de saves y el usuario de auth.users de quien llama). Ver supabase/migrations.
+async function finishDelete() {
+  if (!client || !user) return false;
+  try {
+    const { data, error } = await withTimeout(client.rpc('delete_my_account'), 8_000);
+    if (error || !data?.ok) return false;
+  } catch { return false; }
+  try { await client.auth.signOut({ scope: 'local' }); } catch { /* el usuario ya no existe: alcanza con olvidar la sesión */ }
+  base.removeItem(DEL);
+  writeMeta({ uid: null, rev: 0, dirty: !!base.getItem(SAVE_KEY) });
+  user = null;
+  return true;
+}
+// Borra la cuenta: en la nube ahora (si hay conexión) o al reconectar; en este dispositivo, siempre. Después recarga.
+export async function deleteAccount() {
+  clearTimeout(timer);
+  try { base.setItem(DEL, String(Date.now())); } catch { /* sin almacenamiento: igual se borra lo local */ }
+  const cloudDone = A.status === 'online' && !!user && (await finishDelete());
+  wiping = true;
+  for (const k of [SAVE_KEY, BACKUP_KEY, META]) { try { base.removeItem(k); } catch { /* nada */ } }
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith('oathbreak.') && k !== DEL) localStorage.removeItem(k);
+    }
+  } catch { /* nada */ }
+  reloadWith(cloudDone ? 'Borramos tu cuenta y todos tus datos.'
+    : 'Borramos tu cuenta en este dispositivo. La copia en la nube se borra sola cuando vuelvas a tener conexión.');
+  return { ok: true, cloud: cloudDone };
 }
 
 const NOTICE = 'oathbreak.cloud.notice';

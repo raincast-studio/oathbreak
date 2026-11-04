@@ -267,11 +267,13 @@ function navLinks(cls, ids) {
 }
 
 // TEMPORAL: 5 toques al nombre abren herramientas de prueba (reloj, oro, reinicio).
+// v17: en producción (GitHub Pages o dominio propio) solo con ?debug=1; en el artifact y en local, siempre.
+const DEBUG_OK = /[?&]debug=1/.test(location.search) || !/(github\.io|oathbreak\.gg)$/.test(location.hostname);
 let taps = [];
 function nameTap() {
   const t = performance.now();
   taps = [...taps.filter((x) => t - x < 2000), t];
-  if (taps.length >= 5) { taps = []; debugSheet(); }
+  if (taps.length >= 5 && DEBUG_OK) { taps = []; debugSheet(); }
 }
 function debugSheet() {
   const adv = (ms, label) => h('button.btn.ghost', { type: 'button', onclick: () => { game.debug.advance(ms); refresh(); toast(`Reloj +${label}`); } }, `+${label}`);

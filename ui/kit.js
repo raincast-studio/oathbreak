@@ -168,9 +168,10 @@ let current = null;
 export const sheetOpen = () => !!current;
 
 export function openSheet({ title, body, onClose }) {
-  closeSheet(true);
+  // v17: hoja desde hoja → se reutiliza la entrada del historial (antes el history.back() asíncrono cerraba la hoja nueva).
+  const reuse = !!current?.pushed, prevFocus = reuse ? current.prevFocus : document.activeElement;
+  closeSheet(true, reuse);
   sfx('open');
-  const prevFocus = document.activeElement;
   const closeBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Cerrar', onclick: () => closeSheet() }, icon('close', 20));
   const panel = h('div.sheet', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sheet-title', tabIndex: -1 },
     h('div.sheet-grab', { 'aria-hidden': 'true' }),
@@ -212,8 +213,8 @@ export function openSheet({ title, body, onClose }) {
   panel.addEventListener('pointerup', up);
   panel.addEventListener('pointercancel', up);
 
-  current = { layer, panel, prevFocus, onClose, pushed: false };
-  try { history.pushState({ sheet: 1 }, ''); current.pushed = true; } catch { /* el marco puede no permitirlo */ }
+  current = { layer, panel, prevFocus, onClose, pushed: reuse };
+  if (!reuse) try { history.pushState({ sheet: 1 }, ''); current.pushed = true; } catch { /* el marco puede no permitirlo */ }
   return panel;
 }
 
