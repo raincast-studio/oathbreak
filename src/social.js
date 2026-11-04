@@ -8,6 +8,7 @@ import { checkStreak } from './lair.js';
 import { bump } from './objectives.js';
 import { track } from './telemetry.js';
 import { addGlory } from './season.js';
+import { replyDelay } from './bots.js';
 
 const G = () => CFG.social;
 
@@ -37,10 +38,11 @@ export function addFriend(e, f, now = 0, world) {
   reqs(e).out.push({ id: f.id, ts: now });
   const entry = { id: e.id, name: e.name, faction: e.faction, level: e.level, ts: now };
   // Un bot decide con demora (1–6 h) y acepta el 70% de las veces; la decisión se fija con semilla al recibirla.
+  // v17: cada bot tiene su ritmo (unos contestan rápido, otros tarde) y contesta recién cuando está despierto y entra.
   if (f.isBot) {
     let h = 2166136261; for (const ch of `${e.id}>${f.id}|${now}|${world?.seed ?? 0}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
-    const rng = mulberry32(h >>> 0), [lo, hi] = G().botReplyH;
-    entry.replyAt = now + Math.round((lo + rng() * (hi - lo)) * HOUR);
+    const rng = mulberry32(h >>> 0);
+    entry.replyAt = now + replyDelay(world, f, rng);
     entry.accept = rng() < G().botAcceptChance;
   }
   reqs(f).in.push(entry);
@@ -77,7 +79,9 @@ export function removeFriend(e, id, f) {
 
 // Bots: contestan las solicitudes cuando llega su hora y, de vez en cuando, le mandan una a su jugador
 // (más probable si lo visitaron). Así el jugador también recibe solicitudes para aceptar.
-export function botFriendship(world, b, p, now, rng) {
+// v17: solo cuando el bot está en línea; opts.per reparte la tasa diaria en sus horas en línea; opts.quiet (bot que se
+// retira) ya no manda solicitudes.
+export function botFriendship(world, b, p, now, rng, opts = {}) {
   const q = reqs(b);
   for (const r of q.in.filter((x) => x.replyAt != null && x.replyAt <= now)) {
     const from = world.entities[r.id];
@@ -89,9 +93,12 @@ export function botFriendship(world, b, p, now, rng) {
   const already = (b.friends ?? []).includes(p.id) || reqs(b).out.some((r) => r.id === p.id) || reqs(p).out.some((r) => r.id === b.id);
   const visited = p.lair.guestbook.some((g) => g.id === b.id);
   // v15: tope de solicitudes de bots pendientes (antes se juntaban 25 en 3 días).
-  if (!already && !full(p) && pendingIn(p, now).length < (G().maxBotRequestsPending ?? Infinity) && rng() < G().botRequestChancePerHour * (visited ? 3 : 1)) {
-    reqs(b).out.push({ id: p.id, ts: now });
-    reqs(p).in.push({ id: b.id, name: b.name, faction: b.faction, level: b.level, ts: now });
+  if (!opts.quiet && !already && !full(p) && pendingIn(p, now).length < (G().maxBotRequestsPending ?? Infinity) && rng() < G().botRequestChancePerHour * (opts.per ?? 1) * (visited ? 3 : 1)) {
+    const ts = opts.ts ?? now; // hora que se muestra (v17: dentro de la franja en línea del bot)
+    reqs(b).out.push({ id: p.id, ts });
+    const inq = reqs(p).in, entry = { id: b.id, name: b.name, faction: b.faction, level: b.level, ts };
+    const i = inq.findIndex((r) => r.ts > ts); // ordenadas por hora (los bots fechan dentro de la franja)
+    if (i < 0) inq.push(entry); else inq.splice(i, 0, entry);
   }
 }
 
@@ -112,7 +119,7 @@ function rollGift(world, from, to, now) {
   return pool[Math.floor(rng() * pool.length)];
 }
 
-export function sendGift(world, from, to, now) {
+export function sendGift(world, from, to, now, ts = now) { // ts: hora que se muestra (v17)
   if (from.id === to.id) return { ok: false, error: 'no_podes_regalarte' };
   if (!(from.friends ?? []).includes(to.id)) return { ok: false, error: 'no_es_amigo' };
   const s = sentToday(from, now);
@@ -124,7 +131,7 @@ export function sendGift(world, from, to, now) {
   from.giftsSent = { day: s.day, to: [...s.to, to.id] };
   const it = rollGift(world, from, to, now);
   to.giftbox ??= [];
-  to.giftbox.push({ id: it.id, from: from.id, fromName: from.name, ts: now });
+  to.giftbox.push({ id: it.id, from: from.id, fromName: from.name, ts });
   if (to.giftbox.length > G().giftboxMax) to.giftbox.splice(0, to.giftbox.length - G().giftboxMax);
   bump(world, from, 'gift', now);
   addGlory(from, 'gift', now);

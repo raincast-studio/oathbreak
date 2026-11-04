@@ -1,5 +1,5 @@
 // Misiones, banco, curación, PvP y bots. Opera sobre el "world" (estado serializable completo).
-import { CFG, CONTRACTS, HOUR, MIN } from './config.js';
+import { CFG, CONTRACTS, HOUR, MIN, DAY } from './config.js';
 import { deriveSeed, dayKey, weekKey, mulberry32 } from './core.js';
 import { addXp, buyStat, buyGear, itemPrice, effStats, maxHp, statCost, sync, createEntity, power } from './character.js';
 import { resolveCombat } from './combat.js';
@@ -11,6 +11,7 @@ import { track } from './telemetry.js';
 import { addGlory } from './season.js';
 import { weekendEvent } from './events.js';
 import { sendGift, botFriendship } from './social.js';
+import * as BL from './bots.js';
 
 export { missionReward };
 
@@ -99,15 +100,16 @@ export function revengeList(a, now) {
   const seen = new Set();
   return (a.revenge ?? []).filter((r) => !r.used && now - r.ts < revengeWindow() && !seen.has(r.id) && seen.add(r.id));
 }
-function markAttacked(def, att, now, loot) {
+function markAttacked(def, att, now, loot, ts = now) {
   if (def.isBot) return;
-  def.revenge = [{ id: att.id, name: att.name, ts: now, loot, used: false }, ...(def.revenge ?? []).filter((r) => now - r.ts < revengeWindow())].slice(0, 20);
+  def.revenge = [{ id: att.id, name: att.name, ts, loot, used: false }, ...(def.revenge ?? []).filter((r) => now - r.ts < revengeWindow())].slice(0, 20);
 }
 
 // Motivo por el que A no puede atacar a D (null = puede).
 export function attackBlock(a, d, now, { ignoreEnergy = false, duel = false } = {}) {
   if (a.id === d.id) return 'mismo_jugador';
   if (a.faction === d.faction) return 'misma_faccion';
+  if (BL.gone(d, now)) return 'fuera_de_rango'; // v17: un bot retirado ya no juega
   if (!a.isBot && a.mission) return 'en_mision'; // como en BiteFight: mientras trabajás no cazás
   const rev = !duel && revengeOn(a, d.id, now);
   if (!rev && !inRange(a, d)) return 'fuera_de_rango';
@@ -211,7 +213,7 @@ export const pvpXp = (rivalLevel) => missionReward(CFG.pvp.xpWinMissionMin, riva
 export function preyOf(world, e, now) {
   if (e.prey?.day === dayKey(now) && world.entities[e.prey.id]) return e.prey.id; // fijada en el día (ver fixPrey)
   const cands = Object.values(world.entities)
-    .filter((o) => o.faction !== e.faction && inRange(e, o) && (o.isBot || o.level >= CFG.pvp.newbieLevel))
+    .filter((o) => o.faction !== e.faction && inRange(e, o) && (o.isBot || o.level >= CFG.pvp.newbieLevel) && !BL.retireStage(o, now)) // v17: un bot que se retira ya no es presa (un Eco sí)
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   if (!cands.length) return null;
   // 31/10: la presa es de tu nivel o menor cuando hay alguno (antes podía tocarle a un novato un rival de Nv 3–4).
@@ -295,7 +297,7 @@ export function pvp(world, att, def, now, opts = {}) {
 
   const pct = (dealt, max) => Math.round((100 * dealt) / max);
   const report = {
-    id: `r${world.seq}`, ts: now, seed,
+    id: `r${world.seq}`, ts: opts.ts ?? now, seed, // opts.ts: hora que se muestra (v17: los bots la reparten en la franja)
     attacker: { ...head(att), hpStart: A.maxHp, hpEnd: Math.round(res.hpEndA), maxHp: A.maxHp, stats: A.stats },
     defender: { ...head(def), hpStart: D.maxHp, hpEnd: Math.round(res.hpEndD), maxHp: D.maxHp, stats: D.stats },
     winner: res.winner === 'A' ? 'attacker' : 'defender',
@@ -312,7 +314,7 @@ export function pvp(world, att, def, now, opts = {}) {
     revenge: !!revenge,
   };
   if (!opts.duel) {
-    markAttacked(def, att, now, win === att ? loot : 0);
+    markAttacked(def, att, now, win === att ? loot : 0, opts.ts ?? now);
     fileReport(att, report, 'attacker'); fileReport(def, report, 'defender');
     track(world, att, 'pvp', { role: 'attacker', won: win === att, loot, bounty, foe: def.isBot ? 'bot' : 'player' }, now);
     if (!def.isBot) track(world, def, 'pvp', { role: 'defender', won: win === def, loot, bounty, foe: att.isBot ? 'bot' : 'player' }, now);
@@ -402,7 +404,7 @@ function addWeeklyRep(e, now, n) {
 
 export function factionScore(world, now) {
   const w = weekKey(now), s = { hero: 0, villain: 0 };
-  for (const e of Object.values(world.entities)) if (e.repWeek?.week === w) s[e.faction] += e.repWeek.count;
+  for (const e of Object.values(world.entities)) if (e.repWeek?.week === w && !BL.isEco(e)) s[e.faction] += e.repWeek.count; // v17: sin Ecos
   return s;
 }
 
@@ -417,8 +419,6 @@ const ARCHETYPES = {
   duelista: { fue: 1.5, def: 0.6, agi: 1.5, res: 0.8 },
   centinela: { fue: 0.8, def: 1.5, agi: 1.5, res: 0.8 },
 };
-const HERO_NAMES = ['Aurora', 'Bastión', 'Centella', 'Égida', 'Faro', 'Halcón', 'Justa', 'Lumen', 'Paladín', 'Sol', 'Titán', 'Valor', 'Vigía', 'Zafiro', 'Brisa', 'Cometa', 'Escudo', 'Fénix', 'Nova', 'Roble'];
-const VILL_NAMES = ['Abismo', 'Cuervo', 'Dread', 'Espina', 'Grieta', 'Hollín', 'Kraken', 'Mantis', 'Niebla', 'Óxido', 'Plaga', 'Ruina', 'Sombra', 'Tizón', 'Umbra', 'Veneno', 'Vórtice', 'Yugo', 'Zarpa', 'Ceniza'];
 
 // Gasta oro en stats según pesos, dejando una reserva en mano.
 export function spendByWeights(e, weights, keepPct = 0.3) {
@@ -444,8 +444,8 @@ export function createBots(world, now) {
   const rng = mulberry32(world.seed ^ 0xb075);
   for (let i = 0; i < CFG.bots.count; i++) {
     const faction = i % 2 ? 'villain' : 'hero';
-    const names = faction === 'hero' ? HERO_NAMES : VILL_NAMES;
-    const b = createEntity({ id: `b${i}`, name: names[(i >> 1) % names.length], faction, isBot: true, now });
+    // v17: nicks de jugador únicos (antes, nombres temáticos de una lista fija por facción).
+    const b = createEntity({ id: `b${i}`, name: BL.botName(world, i, faction), faction, isBot: true, now });
     b.arch = rng.pick(Object.keys(ARCHETYPES));
     // Bots "espejo": orbitan el nivel y el poder del jugador para que siempre haya rivales justos.
     b.offset = rng.int(-3, 3);
@@ -459,7 +459,7 @@ export function createBots(world, now) {
     const bankPart = Math.floor(b.gold * rng.range(0, 0.5));
     if (bankPart > 0) deposit(b, bankPart);
     b.hp = maxHp(b);
-    furnishBot(b, rng);
+    furnishBot(b, mulberry32(BL.hash32(world.seed, b.id, 0xf0b))); // rng aparte: la decoración no cambia los atributos de los bots
     world.entities[b.id] = b;
   }
 }
@@ -485,10 +485,16 @@ function visitWeights(world) {
   return { ents, w: ents.map((e) => 1 + prestige(e).total / 20) };
 }
 
-// Una hora simulada de un bot: ingresos, gasto, duelos entre bots, ataques y visitas.
+// Una hora simulada de un bot: emparejamiento (siempre, invisible) y, si estuvo en línea, lo que se ve: visitas,
+// ataques, duelos, regalos y solicitudes. v17: las acciones salen en ráfagas dentro de la franja que terminó, con su
+// minuto (nunca antes de que exista el destinatario ni del día anterior), siguiendo el horario humano del bot.
 function botHour(world, b, now, rng, bots, weights) {
+  const stage = BL.retireStage(b, now);
+  if (stage >= 3) return; // se fue: no juega (no es objetivo; sigue en listas de amigos como inactivo)
   sync(b, now);
   const p = world.entities[b.anchor]; // jugador al que orbita este bot
+  const s = Math.floor(now / HOUR) - 1; // franja que acaba de terminar
+  const on = BL.slot(world, b, s, BL.activity(b, now));
   const r = missionReward(60, b.level);
   // Matchmaking por resultado: si el jugador le gana demasiado seguido, el bot sube su objetivo de poder; si pierde mucho, lo baja.
   if (p) {
@@ -501,7 +507,14 @@ function botHour(world, b, now, rng, bots, weights) {
   const behind = p && power(b) < target;
   b.gold += b.bank; b.bank = 0;
   b.gold += Math.round(r.gold * (behind ? 2 : CFG.bots.incomeEff * 0.3));
-  if (p && b.level < Math.max(1, p.level + b.offset)) addXp(b, CFG.xpNeed(b.level) - b.xp); // +1 nivel/h máx
+  if (p) {
+    // v17: progreso humano. Las primeras horas del jugador, +1 nivel/h como antes (calibración). Después sube cuando
+    // juega, con rachas (un nivel adelante o atrás cada pocos días) y pausas; si quedó muy atrás, se pone al día.
+    const H = CFG.bots.human, warm = now - (p.createdAt ?? 0) < H.warmupH * HOUR;
+    const day = warm ? null : BL.dayOf(world, b, s);
+    const lag = Math.max(1, p.level + b.offset + (day?.drift ?? 0)) - b.level;
+    if (lag > 0 && (warm || on || (!day.paused && lag >= H.catchUpLag))) addXp(b, CFG.xpNeed(b.level) - b.xp); // +1 nivel/h máx
+  }
   if (behind) {
     // Mejora hasta alcanzar su objetivo de poder, sin pasarse (equipo primero, después atributos de a uno).
     const w = ARCHETYPES[b.arch];
@@ -520,21 +533,33 @@ function botHour(world, b, now, rng, bots, weights) {
   // Oro en mano acotado (1 h de misión): el botín robado a bots es una fuente del sistema controlada; el resto queda en el banco.
   const cap = Math.round(missionReward(CFG.bots.handGoldMissionMin, b.level).gold * (b.wealth ?? 1));
   if (b.gold > cap) { b.bank += b.gold - cap; b.gold = cap; }
-  // Duelo entre bots: reputación real para el marcador de facción.
-  if (rng() < CFG.bots.duelChancePerHour) {
+  if (!on) return; // durmiendo, sin entrar hoy o en pausa: nada visible
+  // Las tasas de config son por día: se reparten en las horas en línea de este bot.
+  const per = 24 / Math.max(0.5, BL.onlineHours(world, b));
+  // Las reglas (cupos por día, cooldowns, semana) corren a la hora en punto, como siempre; lo que se muestra (informe,
+  // libro de visitas, regalo, solicitud) lleva el minuto de la ráfaga, nunca antes de que exista el destinatario.
+  const at = (off, to) => Math.max(s * HOUR + off, to?.createdAt ?? 0);
+  const pa = CFG.bots.attackChancePerHour / (CFG.bots.attackChancePerHour + CFG.bots.visitChancePerHour);
+  // Ráfaga: cada acción visible es un ataque a su jugador o una visita (en la proporción de las tasas de config).
+  for (const off of on.offs) {
+    if (p && rng() < pa) pvp(world, b, p, now, { ignoreEnergy: true, ts: at(off, p) });
+    else { const h = pickVisitTarget(world, b, rng, weights); lairVisit(world, b, h, now, { applaud: rng() < 0.7, ts: at(off, h) }); }
+  }
+  // Duelos entre bots (invisibles: solo reputación para el ranking), en la misma cantidad diaria que antes.
+  const nd = CFG.bots.duelChancePerHour * per * BL.activity(b, now);
+  for (let i = 0, n = Math.floor(nd) + (rng() < nd % 1 ? 1 : 0); i < n; i++) {
     const foes = bots.filter((o) => o.faction !== b.faction && !attackBlock(b, o, now, { ignoreEnergy: true, duel: true }));
     if (foes.length) pvp(world, b, foes[Math.floor(rng() * foes.length)], now, { ignoreEnergy: true, duel: true });
   }
-  if (p && rng() < CFG.bots.attackChancePerHour) pvp(world, b, p, now, { ignoreEnergy: true });
-  // Bots amigos regalan de vez en cuando a su jugador (y siempre devuelven un regalo recibido ese día).
-  if (p && (b.friends ?? []).includes(p.id)) {
+  const last = on.offs[on.k - 1];
+  // Bots amigos regalan de vez en cuando a su jugador (y devuelven el regalo recibido ese día, si entran ese día).
+  if (p && stage < 2 && (b.friends ?? []).includes(p.id)) {
     const owes = (p.giftsSent?.day === dayKey(now) && p.giftsSent.to.includes(b.id));
     const sent = b.giftsSent?.day === dayKey(now) && b.giftsSent.to.includes(p.id);
-    if (!sent && (owes || rng() < CFG.social.botGiftChancePerHour)) sendGift(world, b, p, now);
+    if (!sent && (owes || rng() < CFG.social.botGiftChancePerHour * per)) sendGift(world, b, p, now, at(last, p));
   }
-  if (p) botFriendship(world, b, p, now, rng);
-  if (rng() < CFG.bots.visitChancePerHour) lairVisit(world, b, pickVisitTarget(world, b, rng, weights), now, { applaud: rng() < 0.7 });
-  if (rng() < 0.05) furnishBot(b, rng);
+  if (p) botFriendship(world, b, p, now, rng, { per, quiet: stage >= 2, ts: at(last, p) });
+  if (rng() < 0.05 * per) furnishBot(b, rng);
 }
 
 // Procesa cada hora en punto del mundo (hh:00) que ya pasó, en orden y una sola vez.
@@ -550,6 +575,7 @@ export function tickBots(world, now, maxHours = Infinity) {
   const bots = Object.values(world.entities).filter((e) => e.isBot);
   for (let h = from; h <= to; h++) {
     settleShowcase(world, h * HOUR);
+    if (world.botDay !== dayKey(h * HOUR)) rebalanceBots(world, h * HOUR); // v17: una vez por día, antes de jugar la hora
     const rng = mulberry32((world.seed ^ Math.imul(h, 0x85ebca6b)) >>> 0);
     const weights = visitWeights(world);
     for (const b of bots) botHour(world, b, h * HOUR, rng, bots, weights);
@@ -557,6 +583,83 @@ export function tickBots(world, now, maxHours = Infinity) {
   world.botHour = to;
   return to - from + 1;
 }
+// v17: reparto diario de bots. (1) Los bots cuya ancla dejó de jugar (activeDays) pasan a orbitar a un jugador activo.
+// (2) Con bots.retire.enabled se retiran de a poco los que sobran en el rango de cada jugador activo según la proporción
+// máxima del plan, sin bajar de los pisos: minTargets rivales y minPeers de tu facción en tu rango, y capacidad para
+// recibir los huntsPerDay ataques de cada cazador (cada objetivo recibe hasta pvp.maxReceivedPerDay por día).
+// (3) Si falta algún piso (se fueron jugadores) o se apagó el mecanismo, vuelven bots retirados (como quien vuelve de
+// un descanso). Determinista: orden fijo por semilla y una sola vez por día (world.botDay).
+export function rebalanceBots(world, now) {
+  world.botDay = dayKey(now);
+  const R = CFG.bots.retire;
+  const bots = Object.values(world.entities).filter((e) => e.isBot);
+  const humans = (world.players ?? []).map((id) => world.entities[id])
+    .filter((e) => e && !e.isBot && now - (e.lastSeen ?? e.createdAt ?? 0) < R.activeDays * DAY);
+  if (!humans.length) return null;
+  const order = bots.slice().sort((a, b) => BL.hash32(world.seed, a.id, 77) - BL.hash32(world.seed, b.id, 77));
+  // 1) Anclas: al jugador activo con menos bots entre los que el bot puede alcanzar (los bots no bajan de nivel).
+  const load = new Map(humans.map((h) => [h.id, 0]));
+  for (const b of bots) if (load.has(b.anchor)) load.set(b.anchor, load.get(b.anchor) + 1);
+  for (const b of order) if (!load.has(b.anchor)) {
+    const reach = humans.filter((h) => h.level + levelRange(h.level) >= b.level);
+    const to = (reach.length ? reach : humans).slice().sort((x, y) => load.get(x.id) - load.get(y.id) || (x.id < y.id ? -1 : 1))[0];
+    b.anchor = to.id; load.set(to.id, load.get(to.id) + 1);
+  }
+  // Quien vuelve después de irse se quedó sin bots propios: recupera de a poco (hasta perDay por día) de los más cargados.
+  const fair = Math.floor(bots.length / humans.length);
+  for (let moved = 0, h; moved < CFG.bots.retire.perDay && (h = humans.find((x) => load.get(x.id) < fair / 2)); moved++) {
+    const b = order.find((x) => load.get(x.anchor) > fair && x.level <= h.level + levelRange(h.level));
+    if (!b) break;
+    load.set(b.anchor, load.get(b.anchor) - 1); b.anchor = h.id; load.set(h.id, load.get(h.id) + 1);
+  }
+  // 2) Conteos en el rango de cada jugador activo: humanos y bots activos, rivales (opp) y de su facción (same).
+  const cap = CFG.pvp.maxReceivedPerDay;
+  const C = humans.map((h) => {
+    const c = { h, Hopp: 0, Hsame: 0, Bopp: 0, Bsame: 0 };
+    for (const o of humans) if (o !== h && inRange(h, o)) c[o.faction === h.faction ? 'Hsame' : 'Hopp']++;
+    for (const b of bots) if (!b.ret && inRange(h, b)) c[b.faction === h.faction ? 'Bsame' : 'Bopp']++;
+    c.needOpp = Math.max(R.minTargets - c.Hopp, Math.ceil((R.huntsPerDay * (c.Hsame + 1) - cap * c.Hopp) / cap), 0);
+    c.needSame = Math.max(R.minPeers - c.Hsame, 0);
+    return c;
+  });
+  const age = R.since == null ? 0 : (now - R.since) / DAY;
+  const share = (R.plan.filter(([d]) => age >= d).at(-1) ?? R.plan[0])[1];
+  const key = (c, b) => (b.faction === c.h.faction ? 'Bsame' : 'Bopp');
+  const need = (c, b) => (b.faction === c.h.faction ? c.needSame : c.needOpp);
+  const shareOf = (c) => (c.Bopp + c.Bsame) / (c.Bopp + c.Bsame + c.Hopp + c.Hsame + 1);
+  let retired = 0, back = 0;
+  if (R.enabled) for (const b of order) {
+    if (retired >= R.perDay) break;
+    if (b.ret) continue;
+    const P = C.filter((c) => inRange(c.h, b));
+    const act = bots.filter((x) => !x.ret).length;
+    const excess = P.length ? P.some((c) => shareOf(c) > share) : act / (act + humans.length) > share;
+    if (!excess || !P.every((c) => c[key(c, b)] - 1 >= need(c, b))) continue;
+    b.ret = { at: now }; retired++;
+    for (const c of P) c[key(c, b)]--;
+  }
+  // 3) Regresos: primero los que faltan para los pisos (el bot pasa a orbitar a ese jugador); con el mecanismo
+  // apagado, de a poco todos.
+  const comeBack = (b, c) => {
+    delete b.ret; back++;
+    if (!c) return;
+    b.anchor = c.h.id;
+    for (const x of C) if (inRange(x.h, b)) x[key(x, b)]++;
+    if (!inRange(c.h, b)) c[key(c, b)]++; // todavía fuera de rango: sube de nivel hasta alcanzarlo
+  };
+  for (const c of C) for (const fac of [c.h.faction === 'hero' ? 'villain' : 'hero', c.h.faction]) {
+    const k = fac === c.h.faction ? 'Bsame' : 'Bopp', n = fac === c.h.faction ? c.needSame : c.needOpp;
+    while (c[k] < n && back < 2 * R.perDay) {
+      const pool = order.filter((b) => b.ret && b.faction === fac);
+      const b = pool.find((x) => inRange(c.h, x)) ?? pool.filter((x) => x.level <= c.h.level).sort((x, y) => y.level - x.level)[0];
+      if (!b) break;
+      comeBack(b, c);
+    }
+  }
+  if (!R.enabled) for (const b of order) { if (back >= R.perDay) break; if (b.ret) comeBack(b, null); }
+  return { retired, back, share };
+}
+
 // Horas de bots que faltan simular hasta `now` (con el tope de maxCatchUpHours).
 export function botHoursPending(world, now) {
   const last = Math.floor(now / HOUR);

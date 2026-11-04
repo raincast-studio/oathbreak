@@ -43,6 +43,13 @@ const STEPS = {
       if (e.isBot) { e.skill ??= (e.powerMul ?? 0.9) - 0.9; e.scale ??= 1; e.wealth ??= 1; delete e.powerMul; }
     }
   },
+  // v5 → v6 (v17): bots con horario humano y retiro progresivo. El perfil de cada bot se deriva de la semilla (no se
+  // guarda). Se guardan el día del último reparto de bots (botDay) y, solo en los retirados, ret: { at }. Los nombres y
+  // las guaridas de los bots existentes se conservan: el jugador ya los conoce (cambiarlos de golpe se notaría).
+  5(w) {
+    w.botDay ??= null;
+    for (const e of Object.values(w.entities)) if (e.isBot && e.ret && !Number.isFinite(e.ret.at)) delete e.ret;
+  },
 };
 
 export function migrate(w, target) {

@@ -10,8 +10,11 @@ import { addXp, sync } from './character.js';
 import { missionReward, hasKey, isInt } from './economy.js';
 import { bump } from './objectives.js';
 import { track } from './telemetry.js';
+import { lairStyle, unlisted, isEco } from './bots.js';
 
 const L = () => CFG.lair;
+// v17: los bots dejan acciones con hora dentro de la última franja: el libro de visitas queda ordenado por hora.
+function sign(gb, entry) { const i = gb.findIndex((g) => g.ts <= entry.ts); if (i < 0) gb.push(entry); else gb.splice(i, 0, entry); }
 const DEFAULT = { floor: 'piso_piedra', wall: 'pared_ladrillo' };
 
 /* ---------- Edificios ---------- */
@@ -305,7 +308,7 @@ function bumpStreak(e, now) {
 
 const applauseOf = (e, week) => (e.lair.applause.week === week ? e.lair.applause.voters.length : 0);
 
-export function visit(world, v, h, now, { applaud = true } = {}) {
+export function visit(world, v, h, now, { applaud = true, ts = now } = {}) { // ts: hora que se muestra (v17: los bots la reparten en la franja)
   if (v.id === h.id) return { ok: false, error: 'tu_propia_guarida' };
   resetDaily(v, now);
   const vs = v.lair.visits, cfg = L().visit;
@@ -336,7 +339,7 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
   out.hostTip = 0;
   // Antiabuso: las cuentas novatas visitan y ganan, pero no generan propina, renombre ni aplausos al anfitrión.
   if (!v.isBot && v.level < CFG.pvp.newbieLevel) {
-    h.lair.guestbook.unshift({ id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts: now, applause: false, tip: 0 });
+    sign(h.lair.guestbook, { id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts, applause: false, tip: 0 });
     { const gbMax = h.isBot ? cfg.guestbookMaxBot : cfg.guestbookMax; if (h.lair.guestbook.length > gbMax) h.lair.guestbook.length = gbMax; }
     return out;
   }
@@ -349,7 +352,7 @@ export function visit(world, v, h, now, { applaud = true } = {}) {
   if (h.lair.tips.renown < cfg.hostRenownCap) { h.lair.renown++; h.lair.tips.renown++; }
   h.lair.boosts = h.lair.boosts.filter((end) => end > now); // 31/10: los vencidos se descartan (antes crecían sin límite)
   if (h.lair.boosts.length < cfg.hostBoostMax) h.lair.boosts.push(now + cfg.hostBoostMin * MIN);
-  h.lair.guestbook.unshift({ id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts: now, applause: applaud, tip: out.hostTip });
+  sign(h.lair.guestbook, { id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts, applause: applaud, tip: out.hostTip });
   { const gbMax = h.isBot ? cfg.guestbookMaxBot : cfg.guestbookMax; if (h.lair.guestbook.length > gbMax) h.lair.guestbook.length = gbMax; }
   if (applaud) {
     const w = weekKey(now);
@@ -394,7 +397,7 @@ export const leagueOf = (level) => [...L().leagues].reverse().find((l) => level 
 
 export function showcase(world, now, faction, week = weekKey(now), league) {
   return Object.values(world.entities)
-    .filter((e) => (!faction || e.faction === faction) && (!league || leagueOf(e.level) === league))
+    .filter((e) => (!faction || e.faction === faction) && (!league || leagueOf(e.level) === league) && !unlisted(e, now)) // v17: sin Ecos ni bots que se retiran
     .map((e) => ({ id: e.id, name: e.name, faction: e.faction, level: e.level, league: leagueOf(e.level), prestige: prestige(e).total, applause: applauseOf(e, week), score: scoreOf(e, week) }))
     .sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 }
@@ -408,8 +411,11 @@ export function settleShowcase(world, now) {
   const prev = world.showcaseWeek;
   world.showcaseWeek = w;
   const winners = [];
+  const eco = CFG.bots.label === 'eco';
   for (const f of ['hero', 'villain']) for (const lg of L().leagues) {
-    for (const row of showcase(world, now, f, prev, lg.id).slice(0, L().visit.prize.top)) {
+    const rows = showcase(world, now, f, prev, lg.id);
+    if (eco && rows.length < CFG.bots.eco.prizeMinEntrants) continue; // v17: con Ecos, una liga casi vacía no da premio
+    for (const row of rows.slice(0, L().visit.prize.top)) {
       const e = world.entities[row.id];
       e.lair.renown += L().visit.prize.renown;
       if (!e.lair.owned.marco_honor) grantItem(e, 'marco_honor');
@@ -418,8 +424,11 @@ export function settleShowcase(world, now) {
   }
   // Guerra de facciones: gana la facción con más victorias en la semana; premia a sus miembros con participación real.
   const score = { hero: 0, villain: 0 };
-  for (const e of Object.values(world.entities)) if (e.repWeek?.week === prev) score[e.faction] += e.repWeek.count;
-  const winFaction = score.hero === score.villain ? null : score.hero > score.villain ? 'hero' : 'villain';
+  const real = { hero: 0, villain: 0 };
+  for (const e of Object.values(world.entities)) if (e.repWeek?.week === prev && !isEco(e)) { score[e.faction] += e.repWeek.count; if (!e.isBot) real[e.faction]++; }
+  // v17: con Ecos, la guerra necesita jugadores reales de los dos lados.
+  const war = !eco || (real.hero >= CFG.bots.eco.warMinReal && real.villain >= CFG.bots.eco.warMinReal);
+  const winFaction = !war || score.hero === score.villain ? null : score.hero > score.villain ? 'hero' : 'villain';
   const rewarded = [];
   if (winFaction) for (const e of Object.values(world.entities)) {
     if (e.isBot || e.faction !== winFaction || !(e.repWeek?.week === prev && e.repWeek.count >= CFG.faction.minWins)) continue;
@@ -455,17 +464,28 @@ export function pvpMilestone(e) {
 }
 
 /* ---------- Bots: guaridas generadas ---------- */
+// v17: cada bot decora con su estilo (1–2 sets favoritos, su piso y su pared) y reparte los muebles por la sala
+// (antes todos quedaban apilados arriba a la izquierda y los pisos cambiaban al azar).
 export function furnishBot(e, rng) {
   const lvlB = Math.min(5, Math.floor(e.level / 6));
   for (const k of Object.keys(L().buildings)) e.lair.buildings[k] = Math.max(e.lair.buildings[k], Math.min(lvlB, rng.int(0, 5)));
-  const pool = ITEMS.filter((i) => canUse(e, i) && i.buyable);
-  // Rareza acorde al nivel: los épicos/legendarios aparecen recién en niveles altos.
+  const st = lairStyle(e), room = e.lair.rooms[0];
+  if (st.floor) room.floor = st.floor;
+  if (st.wall) room.wall = st.wall;
+  const pool = ITEMS.filter((i) => canUse(e, i) && i.buyable && i.cat !== 'piso' && i.cat !== 'pared');
+  // Rareza acorde al nivel: los épicos/legendarios aparecen recién en niveles altos. Sus sets favoritos, ×3.
   const w = { comun: 60, raro: 30, epico: 8 * Math.min(1, e.level / 20), legendario: 2 * Math.min(1, e.level / 40) };
+  const wt = (i) => w[i.rarity] * (st.sets.includes(i.set) ? 3 : 1);
   const pick = () => {
-    let r = rng() * pool.reduce((a, i) => a + w[i.rarity], 0);
-    return pool.find((i) => (r -= w[i.rarity]) < 0) ?? pool[0];
+    let r = rng() * pool.reduce((a, i) => a + wt(i), 0);
+    return pool.find((i) => (r -= wt(i)) < 0) ?? pool[0];
   };
   const want = Math.min(14, 2 + Math.floor(e.level / 2)) - e.lair.placed.length;
-  for (let i = 0; i < want; i++) autoPlace(e, grantItem(e, pick().id));
+  for (let i = 0; i < want; i++) {
+    const uid = grantItem(e, pick().id);
+    let ok = false;
+    for (let t = 0; t < 6 && !ok; t++) ok = placeItem(e, uid, 0, rng.int(0, L().room.w - 1), rng.int(0, L().room.h - 1), rng.int(0, 1)).ok;
+    if (!ok) autoPlace(e, uid);
+  }
   e.lair.inventory = [];
 }
