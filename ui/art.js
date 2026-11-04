@@ -16,16 +16,17 @@ const OL = '#160D22', LIT = '#FFF4DC', DUSK = '#2A1744';
 const hx = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
 const mix = (a, b, t) => { const B = hx(b); return '#' + hx(a).map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
 const made = new Set();
-let pend = '';
+let pend = '', MIR = false; // MIR: se dibuja algo que después se espeja (la luz tiene que seguir viniendo de la izquierda)
 // Degradado de volumen para un color (#rrggbb): 'l' lineal (rectángulos), 'r' radial (curvas). Otros rellenos quedan igual.
 function vol(f, k) {
   if (f === OL || !/^#[0-9a-f]{6}$/i.test(f)) return f;
+  if (MIR && k === 'r') k = 'q';
   const id = k + f.slice(1).toLowerCase();
   if (!made.has(id)) {
     made.add(id);
     const st = (o, c) => `<stop offset="${o}" stop-color="${c}"/>`;
     pend += k === 'l' ? `<linearGradient id="${id}" x2="0" y2="1">${st(0, mix(f, LIT, 0.34))}${st(0.4, f)}${st(1, mix(f, DUSK, 0.4))}</linearGradient>`
-      : `<radialGradient id="${id}" cx=".36" cy=".3" r=".8" fx=".3" fy=".22">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
+      : `<radialGradient id="${id}" cx="${k === 'q' ? 0.64 : 0.36}" cy=".3" r=".8" fx="${k === 'q' ? 0.7 : 0.3}" fy=".22">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
   }
   return `url(#${id})`;
 }
@@ -37,7 +38,7 @@ const C = (cx, cy, r, f, x2 = '') => E(cx, cy, r, r, f, x2);
 const P = (d, f, x2 = '') => `<path d="${d}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
 const L = (d, c = OL, w = 3) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
 const HL = (d, w = 4) => L(d, 'rgba(255,250,235,.5)', w); // brillo (del lado de la luz)
-const shadow = (cx, cy, rx) => `<ellipse cx="${cx + rx * 0.08}" cy="${cy}" rx="${rx * 1.06}" ry="${rx * 0.2}" fill="url(#cs)"/>`;
+const shadow = (cx, cy, rx) => `<ellipse cx="${+(cx + rx * (MIR ? -0.08 : 0.08)).toFixed(1)}" cy="${cy}" rx="${+(rx * 1.06).toFixed(1)}" ry="${+(rx * 0.2).toFixed(1)}" fill="url(#cs)"/>`;
 const sparkle = (x, y, s = 6, c = '#FFF6C8') => `<path d="M${x} ${y - s}L${x + s * 0.3} ${y - s * 0.3}L${x + s} ${y}L${x + s * 0.3} ${y + s * 0.3}L${x} ${y + s}L${x - s * 0.3} ${y + s * 0.3}L${x - s} ${y}L${x - s * 0.3} ${y - s * 0.3}Z" fill="${c}"/>`;
 
 // Materiales: [principal, sombra, detalle, tela]. v15.1: tonos más separados (pino miel claro, roble rojizo, ébano casi
@@ -88,6 +89,49 @@ const SIDE = {
     + HL('M28 96V130', 3) + R(8, 146, 84, 16, d, 5) + R(16, 160, 10, 34, d, 3) + R(74, 160, 10, 34, d, 3),
   biombo: ([m, d, , f]) => shadow(50, 194, 36) + screenPanel(36, 14, 50, 70, m, d, f, true) + screenPanel(14, 64, 50, 70, m, d, f, false)
     + screenPanel(36, 114, 50, 70, m, d, f, true),
+  // v17: cama de costado (2×2): cabecera alta a la izquierda, piecera baja, almohada y frazada vistas de lado.
+  cama: ([m, d, t]) => shadow(100, 192, 92) + R(12, 30, 34, 162, m, 14) + C(29, 58, 8, t) + R(158, 102, 30, 90, m, 10)
+    + R(40, 112, 124, 52, '#F4EEFF', 12) + R(84, 106, 82, 62, d, 12) + L('M100 112V164', 'rgba(255,255,255,.35)', 4) + R(46, 94, 46, 26, '#FFFFFF', 12)
+    + R(40, 160, 124, 14, m, 5) + R(48, 172, 12, 20, d, 3) + R(146, 172, 12, 20, d, 3) + HL('M20 44V170') + HL('M50 102H84', 3),
+  /* Objetos únicos largos, girados (la profundidad sube por la pantalla). 2×1 → 100×200, 3×1 → 100×300, 3×2 → 200×300, 1×2 → 200×100. */
+  sillon: () => shadow(50, 194, 44) + R(14, 18, 72, 36, '#9A3A4C', 14) + R(58, 24, 32, 150, '#B0485A', 16) + R(14, 44, 52, 114, '#C9586A', 12)
+    + L('M18 100H62', '#8E2D40', 3) + C(74, 70, 3, '#8E2D40', 'stroke-width="0"') + C(74, 130, 3, '#8E2D40', 'stroke-width="0"')
+    + R(8, 138, 84, 42, '#9A3A4C', 14) + R(16, 178, 10, 14, WOOD[1], 2) + R(74, 178, 10, 14, WOOD[1], 2) + HL('M66 40V156') + HL('M20 150H80', 3),
+  estanteria: () => shadow(50, 194, 44) + R(26, 6, 64, 100, WOOD[0], 6) + R(26, 100, 64, 92, WOOD[1], 6) + R(34, 112, 48, 68, WOOD[2], 4)
+    + ['#B0485A', '#4FA3FF', '#3DDC97', '#FFC93C', '#8E44F0', '#E2364B', '#5CC8FF', '#F0A04B', '#B07CFF', '#3DDC97', '#E2364B', '#FFC93C', '#4FA3FF', '#B0485A']
+      .map((c, i) => R(i % 2 ? 10 : 8, 8 + i * 13, i % 3 ? 18 : 20, 11, c, 2, 'stroke-width="2.5"')).join('') + E(58, 140, 12, 9, '#F1E8D4') + HL('M36 16V96', 3),
+  vitrina: () => shadow(50, 194, 42) + R(12, 12, 76, 152, WOOD[2], 8) + R(20, 20, 60, 136, 'rgba(189,232,255,.35)', 4) + cupMini(50, 62, '#FFC93C')
+    + R(40, 82, 20, 26, '#B07CFF', 3) + C(50, 80, 6, '#E8F7FF') + R(30, 124, 40, 14, '#E8E6F0', 3) + L('M34 124L50 112L66 124', '#C9A13B', 3)
+    + R(8, 158, 84, 30, WOOD[0], 5) + R(14, 186, 10, 8, WOOD[1], 2) + R(76, 186, 10, 8, WOOD[1], 2) + HL('M28 28L36 146', 3),
+  acuario: () => shadow(50, 194, 42) + R(14, 12, 72, 160, 'rgba(92,200,255,.5)', 6) + R(16, 112, 68, 58, 'rgba(58,143,208,.55)', 4, 'stroke-width="0"')
+    + L('M28 168Q34 148 28 130M72 168Q66 150 74 138', '#3DDC97', 4) + P('M50 36Q58 48 50 60Q42 48 50 36ZM50 60L43 70H57Z', '#FF8F3C', 'stroke-width="3"')
+    + P('M34 78Q41 88 34 98Q27 88 34 78ZM34 98L28 106H40Z', '#FFC93C', 'stroke-width="3"') + C(66, 50, 3, '#E8F7FF', 'stroke-width="1.5"') + C(62, 64, 2, '#E8F7FF', 'stroke-width="1.5"')
+    + R(10, 6, 80, 10, '#5C5670', 3) + R(10, 166, 80, 26, WOOD[1], 4) + HL('M24 22V100'),
+  altar: () => lampGlow(50, 66, 42, '#B07CFF') + shadow(50, 194, 44) + R(16, 140, 68, 52, '#2A2140', 6) + R(8, 22, 84, 124, '#3A2B5C', 6) + R(20, 34, 60, 100, '#22183C', 4)
+    + P('M50 150L60 162L50 174L40 162Z', '#B07CFF', 'stroke-width="3"') + C(50, 70, 12, '#B07CFF') + '<circle cx="50" cy="70" r="5" fill="#F4EEFF"/>'
+    + R(46, 106, 8, 14, '#F1E8D4', 2, 'stroke-width="3"') + flame(50, 102, 0.5, '#B07CFF', '#F4EEFF') + R(46, 30, 8, 12, '#F1E8D4', 2, 'stroke-width="3"') + flame(50, 26, 0.45, '#B07CFF', '#F4EEFF'),
+  chimenea: () => shadow(50, 294, 46) + R(14, 10, 72, 276, '#A69EB3', 6) + R(8, 4, 84, 16, '#8A8296', 4)
+    + [[24, 30], [52, 54], [24, 78], [52, 238], [24, 262]].map(([x, y]) => R(x, y, 26, 16, '#8A8296', 3, 'stroke-width="2.5"')).join('')
+    + P('M14 108Q46 116 46 168Q46 222 14 232Z', '#22152F') + lampGlow(30, 170, 30, '#FF7A2E') + flame(24, 190, 1.1, '#FF7A2E', '#FFC93C') + flame(30, 164, 0.9, '#FFB23C', '#FFF1B0')
+    + R(8, 102, 10, 136, '#8A8296', 4) + R(6, 236, 88, 14, '#8A8296', 4) + HL('M66 20V230'),
+  piano: () => shadow(100, 294, 90) + R(38, 250, 14, 44, '#1A1426', 4) + R(148, 250, 14, 44, '#1A1426', 4) + R(94, 120, 12, 174, '#1A1426', 4)
+    + P('M22 252V62Q22 12 76 12Q124 12 150 62Q166 92 172 136Q178 180 178 252Z', '#2A2140') + P('M40 228V72Q40 32 78 30Q114 30 134 70Q148 100 154 140Q160 180 160 228Z', '#3A2E58')
+    + L('M62 214V60M82 214V44M102 214V46M122 214V64M142 214V108', '#C9A13B', 2) + R(62, 192, 76, 26, '#F1E8D4', 3) + L('M70 200H128M70 208H118', '#8E7FB8', 2)
+    + R(18, 222, 164, 14, '#2A2140', 4) + R(20, 234, 160, 28, '#F4EEFF', 3)
+    + Array.from({ length: 10 }, (_, i) => R(30 + i * 15, 234, 8, 15, '#1A1426', 1, 'stroke-width="2"')).join('') + HL('M34 70Q40 30 80 22'),
+  mapa_mundi: () => shadow(100, 294, 90) + R(28, 240, 16, 54, WOOD[1], 4) + R(156, 240, 16, 54, WOOD[1], 4) + R(10, 14, 180, 230, WOOD[0], 10) + R(24, 28, 152, 198, '#F1E1B8', 6)
+    + P('M60 44Q86 38 96 58Q98 82 76 88Q50 86 48 64Z', '#C9B07A', 'stroke-width="3"') + P('M110 104Q146 100 156 124Q160 154 128 160Q100 158 100 132Z', '#C9B07A', 'stroke-width="3"')
+    + P('M46 168Q74 162 88 178Q84 202 58 206Q40 196 46 168Z', '#C9B07A', 'stroke-width="3"') + L('M84 86Q104 100 112 110', '#E2364B', 3)
+    + '<path d="M138 176l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#E2364B"/>' + R(8, 234, 184, 14, WOOD[1], 4),
+  trono: () => shadow(100, 194, 86) + R(38, 140, 112, 46, '#6E2AB8', 4) + R(36, 110, 116, 32, '#C9586A', 10) + P('M116 186V38Q116 8 140 8Q166 8 166 38V186Z', '#8E44F0')
+    + P('M126 122V44Q141 26 156 44V122Z', '#B07CFF') + P('M141 2L151 18H131Z', '#FFC93C') + C(141, 64, 10, '#FFC93C') + C(141, 64, 4, '#E2364B', 'stroke-width="0"')
+    + R(28, 94, 96, 20, '#FFC93C', 8) + R(28, 112, 22, 62, '#FFC93C', 8) + HL('M124 40Q140 20 158 40') + HL('M44 120H110', 3) + sparkle(178, 30, 8),
+  sarcofago: () => shadow(100, 96, 90) + R(22, 70, 156, 24, '#4A4560', 5) + P('M12 50L44 20H172L190 36V64L172 80H44Z', '#C9A13B') + P('M24 50L50 28H168L180 40V60L168 72H50Z', '#3A2B5C')
+    + E(56, 50, 15, 17, '#E8C77A') + C(52, 44, 3, OL) + C(52, 56, 3, OL) + L('M64 46V54', OL, 3) + L('M38 36Q30 50 38 64', '#4FA3FF', 4)
+    + L('M100 32V68M126 30V70M150 32V68', '#C9A13B', 4) + P('M76 44L86 50L76 56Z', '#E2364B', 'stroke-width="3"'),
+  tanque_clones: () => shadow(100, 96, 90) + R(26, 24, 148, 62, 'rgba(61,220,151,.45)', 30) + '<ellipse cx="106" cy="56" rx="38" ry="13" fill="#2A8A5C" opacity=".8"/><circle cx="58" cy="56" r="12" fill="#2A8A5C" opacity=".85"/>'
+    + C(140, 40, 3, '#E8FFF4', 'stroke-width="1.5"') + C(84, 74, 4, '#E8FFF4', 'stroke-width="1.5"') + HL('M42 36H160', 5)
+    + R(8, 16, 26, 76, '#5C5670', 6) + R(166, 16, 26, 76, '#5C5670', 6) + C(21, 36, 4, '#3DDC97', 'stroke-width="2"') + C(179, 36, 4, '#E2364B', 'stroke-width="2"'),
 };
 // Dónde va cada adorno de material: gema, halo y vetas (vista frontal / lateral).
 const ANCHOR = {
@@ -101,6 +145,7 @@ const ANCHOR = {
   'side:mesa': { gem: [50, 148, 6], glow: [50, 120, 58], grain: 'M40 72V132M62 72V132' },
   'side:banco': { gem: [50, 154, 5], glow: [50, 136, 56], grain: '' },
   'side:biombo': { gem: [61, 116, 5], glow: [50, 104, 62], grain: '' },
+  'side:cama': { gem: [29, 58, 7], glow: [100, 140, 96], grain: 'M22 96V178M168 120V180' },
 };
 // Adornos por material: atrás (halo) y adelante (vetas, gema, destellos). Devuelve [atrás, adelante].
 function matDeco(key, mat, w) {
@@ -360,20 +405,24 @@ const SIDE_OF = { mesa: ['mesa', MAT.roble, R(30, 70, 40, 26, '#F4EEFF', 6) + E(
   mesa_exp: ['mesa', MAT.ebano, P('M28 92L32 68H44L48 92Z', 'rgba(61,220,151,.75)') + R(30, 60, 16, 8, '#B8AFC8', 2, 'stroke-width="3"') + C(66, 112, 10, 'rgba(176,124,255,.75)')] };
 // Línea de apoyo (fracción de la casilla, desde arriba) donde se apoya lo apilado, por fila dentro de la superficie.
 const SEAT = { mesa: [0.5], mesita: [0.46], mesa_exp: [0.5], altar: [0.44], vitrina: [0.18], mapa_mundi: [0.86, 0.3] };
+const ROT_SEAT = { vitrina: [0.62, 0.36], altar: [0.72, 0.38], mapa_mundi: [0.8, 0.62, 0.36] };
 export function surfaceTop(id, rot = 0, row = 0) {
   if (rot % 2 && (SIDE_OF[id] || id.startsWith('mesa_'))) return [0.86, 0.42][row] ?? 0.5;
+  if (rot % 2 && ROT_SEAT[id]) return ROT_SEAT[id][row] ?? 0.5;
   const s = SEAT[id] ?? SEAT[id.split('_')[0]] ?? [0.5];
   return s[Math.min(row, s.length - 1)];
 }
 
+// ¿Tiene vista lateral propia? (únicos por id; variantes y bases que la heredan, por su mueble base).
+const sideOf = (id) => (SIDE_OF[id] ? SIDE[SIDE_OF[id][0]] : ART[id] ? SIDE[id] : SIDE[id.split('_')[0]]);
 // Dibujo crudo en coordenadas propias (w×h casillas de 100). side: vista lateral si existe.
 function body(id, side = false) {
-  if (ART[id] && !(side && SIDE_OF[id])) return ART[id]();
+  if (ART[id] && !(side && SIDE_OF[id])) return side ? SIDE[id]?.() ?? null : ART[id]();
   const [base, mat] = SIDE_OF[id] ? [SIDE_OF[id][0], null] : id.split('_');
   const pal = SIDE_OF[id] ? SIDE_OF[id][1] : MAT[mat] ?? WOOD;
   const tbl = side ? SIDE : BASE;
   if (!tbl[base]) return null;
-  const w = side ? 100 : ITEM[id].size[0] * 100;
+  const w = (side ? ITEM[id].size[1] : ITEM[id].size[0]) * 100;
   const [back, front] = mat ? matDeco(side ? `side:${base}` : base, mat, w) : ['', ''];
   return back + tbl[base](pal) + front + (SIDE_OF[id] && side ? SIDE_OF[id][2] : '');
 }
@@ -390,28 +439,28 @@ export function artMarkup(id, rot = 0, thumb = false) {
   const def = ITEM[id];
   if (!def || def.cat === 'piso' || def.cat === 'pared') return null;
   const [w, hh] = def.size, odd = rot % 2 === 1, square = w === hh, flat = FLAT.has(id);
-  const v = flat ? rot % 4 : !odd ? 0 : square ? 'm' : rot === 3 ? 'sm' : 's';
+  // 0 frente · 1 lado · 2 frente espejado · 3 lado espejado (los cuadrados sin vista lateral alternan frente y espejo).
+  const sv = !flat && !!sideOf(id), mir = !flat && (square && !sv ? odd : rot >= 2);
+  const v = flat ? rot % 4 : `${odd && (sv || !square) ? 's' : 'f'}${mir ? 'm' : ''}`;
   const key = `${id}|${v}`;
   if (cache.has(key)) return cache.get(key);
   const W0 = w * 100, H0 = hh * 100, NW = odd ? H0 : W0, NH = odd ? W0 : H0;
   let inner = null;
-  if (v === 0) inner = body(id);
-  else if (flat) {
+  MIR = mir;
+  if (flat) {
     const b = body(id);
-    inner = b && `<g transform="${rot === 1 ? `translate(${NW} 0) rotate(90)` : rot === 2 ? `translate(${NW} ${NH}) rotate(180)` : `translate(0 ${NH}) rotate(-90)`}">${b}</g>`;
-  } else if (v === 'm') { const b = body(id); inner = b && `<g transform="translate(${W0} 0) scale(-1 1)">${b}</g>`; }
-  else {
-    const base = SIDE_OF[id]?.[0] ?? id.split('_')[0];
-    const sideOk = SIDE[base] && w === 2 && hh === 1;
+    inner = b && (rot ? `<g transform="${rot === 1 ? `translate(${NW} 0) rotate(90)` : rot === 2 ? `translate(${NW} ${NH}) rotate(180)` : `translate(0 ${NH}) rotate(-90)`}">${b}</g>` : b);
+  } else {
     let b;
-    if (sideOk) b = body(id, true);
-    else { // Escorzo genérico: se angosta el lado que pasa a ser el frente y se apoya abajo, con sombra en toda la huella.
-      const raw = body(id), a = NW / W0, c = NH / H0;
-      const sx = a < c ? a : Math.min(a, c * 1.4), sy = a < c ? Math.min(c, a * 1.4) : c;
-      b = raw && shadow(NW / 2, NH - 6, NW * 0.42) + `<g transform="translate(${(NW - W0 * sx) / 2} ${NH - H0 * sy}) scale(${sx} ${sy})">${raw}</g>`;
+    if (v[0] === 'f') b = body(id);
+    else if (sv) b = body(id, true);
+    else { // Sin vista propia (los altos de 1×2): el mismo dibujo a escala pareja (sin deformar), apoyado y centrado en la huella.
+      const raw = body(id), k = Math.min(NW / W0, NH / H0);
+      b = raw && shadow(NW / 2, NH - 6, NW * 0.36) + `<g transform="translate(${(NW - W0 * k) / 2} ${NH - H0 * k}) scale(${k})">${raw}</g>`;
     }
-    inner = b && (v === 'sm' ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
+    inner = b && (mir ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
   }
+  MIR = false;
   const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${inner}</svg>` : null;
   cache.set(key, out);
   flush();
