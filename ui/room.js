@@ -17,12 +17,15 @@ export const W = CFG.lair.room.w, H = CFG.lair.room.h;
 export const footprint = (id, rot) => { const s = ITEM[id].size; return rot % 2 ? [s[1], s[0]] : s; };
 
 // Miniatura de un objeto para listas (inventario, tiendas, regalos): dibujo, o patrón si es piso/pared.
+// v17: los exclusivos de una facción llevan su sello (escudo dorado / cabeza con cuernos) y un brillo de su color abajo.
+const FAC = { hero: 'Exclusivo de Héroes', villain: 'Exclusivo de Villanos' };
 export function swatch(id, def = ITEM[id]) {
-  const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}`;
+  const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}${def.faction ? `.f-${def.faction}` : ''}`;
   if (def.cat === 'piso') return h(cls + '.has-art', { style: { background: floorBg(id) } });
   if (def.cat === 'pared') return h(cls + '.has-art', { style: { background: wallBg(id) } });
   const a = art(id, 'sw-art');
-  return a ? h(cls + '.has-art' + (def.size[0] > def.size[1] ? '.wide' : ''), a) : h(cls, initials(def.name));
+  const seal = FAC[def.faction] ? h(`span.fac.fac-${def.faction}`, { role: 'img', 'aria-label': FAC[def.faction], title: FAC[def.faction] }) : null;
+  return a ? h(cls + '.has-art' + (def.size[0] > def.size[1] ? '.wide' : ''), a, seal) : h(cls, initials(def.name), seal);
 }
 
 // Paletas de piso y pared (color base; el dibujo está en art.js).
