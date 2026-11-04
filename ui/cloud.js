@@ -124,6 +124,15 @@ export async function push() {
   finally { pushing = false; emit(); }
 }
 
+// v17 · Confianza: RPC genérica (submit_report, delete_my_account). Sin conexión, sin la función o con error → { ok: false }.
+export async function rpc(name, args) {
+  if (A.status !== 'online' || !client || !user) return { ok: false, error: 'sin_conexion' };
+  try {
+    const { data, error } = await withTimeout(client.rpc(name, args), 8_000);
+    return error || data?.ok === false ? { ok: false, error: error?.code ?? data?.error ?? 'error_nube' } : { ok: true, data };
+  } catch { return { ok: false, error: 'error_nube' }; }
+}
+
 const NOTICE = 'oathbreak.cloud.notice';
 function reloadWith(msg) { try { sessionStorage.setItem(NOTICE, msg); } catch { /* nada */ } location.reload(); }
 export function takeNotice() { try { const m = sessionStorage.getItem(NOTICE); sessionStorage.removeItem(NOTICE); return m; } catch { return null; } }

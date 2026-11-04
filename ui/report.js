@@ -2,6 +2,7 @@
 import { CFG } from '../src/game.js';
 import { details } from '../src/reports.js';
 import { h, $, icon, num, reduced, sprite } from './kit.js';
+import { reportLink } from './safety.js'; // v17 (gancho de Confianza)
 
 const REASON = { KO: 'por K.O.', DAMAGE: 'por quitar más vida', TIE_DEF: 'empate: gana el defensor' };
 const BOUNTY_NO = {
@@ -126,7 +127,8 @@ function reportView(r, me, done) {
     notes.length ? h('div.rep-notes', notes.map((n) => h('p', n))) : null,
     log,
     h('div.rep-actions', toggle,
-      h('button.btn.gold.rep-continue', { type: 'button', onclick: () => { removeEventListener('keydown', onKey); done(); } }, 'Continuar')));
+      h('button.btn.gold.rep-continue', { type: 'button', onclick: () => { removeEventListener('keydown', onKey); done(); } }, 'Continuar')),
+    reportLink(r[foe], r.id));
 }
 
 function reward(ico, value, label, kind) {

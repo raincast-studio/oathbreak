@@ -1,6 +1,7 @@
 // Pestaña Social: visitas (con vista de la guarida ajena), amigos y regalos, libro de visitas, escaparate y facciones.
 import { CFG, ITEM } from '../../src/game.js';
 import { h, icon, num, toast, openSheet, closeSheet, avatar } from '../kit.js';
+import { playerLinks } from '../safety.js'; // v17: Reportar · Silenciar
 import { renderRoom, swatch } from '../room.js';
 import { segmented } from './guarida.js';
 import { inviteCard } from '../extras.js';
@@ -67,7 +68,8 @@ function lairSheet(ctx, snap) {
         ? h('button.btn.violet', { type: 'button', disabled: giftedToday, onclick: (e) => { const r = ctx.act(e.currentTarget, (g) => g.sendGift(snap.id), (x) => `Le regalaste: ${x.item}`); if (r?.ok) closeSheet(true); } }, giftedToday ? 'Ya le regalaste hoy' : 'Regalar')
         : incoming ? h('button.btn.gold', { type: 'button', onclick: (e) => { const r = ctx.act(e.currentTarget, (g) => g.acceptFriend(snap.id), () => `${snap.name} ahora es tu amigo`); if (r?.ok) closeSheet(true); } }, 'Aceptar solicitud')
         : h('button.btn.ghost', { type: 'button', disabled: sent, onclick: (e) => { const r = ctx.act(e.currentTarget, (g) => g.addFriend(snap.id), (x) => (x.pending ? `Solicitud enviada a ${snap.name}` : `${snap.name} ahora es tu amigo`)); if (r?.ok) closeSheet(true); } }, sent ? 'Solicitud enviada' : 'Agregar amigo'),
-      h('button.btn.gold', { type: 'button', onclick: () => closeSheet() }, 'Listo'))) });
+      h('button.btn.gold', { type: 'button', onclick: () => closeSheet() }, 'Listo')),
+    playerLinks(ctx, { id: snap.id, name: snap.name }, 'guarida')) });
 }
 
 function visitView(ctx) {
