@@ -3,7 +3,8 @@
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
-import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf } from './kit.js';
+import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
+import { sfx, cmdSfx } from './audio.js';
 import { errText } from './errors.js';
 import { showOnboarding, resetTutorial } from './onboarding.js';
 import { showReport } from './report.js';
@@ -40,12 +41,17 @@ export function act(btn, run, okText, { refresh: doRefresh = true } = {}) {
   if (t < lockUntil || btn?.disabled) return null;
   lockUntil = t + 400;
   if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
-  let r;
-  try { r = game.withOp(uid(), () => run(game)); }
+  let r, cmd; // v17: se anota qué comando corrió para su sonido (un solo lugar en vez de cada botón)
+  const spy = new Proxy(game, { get: (o, k) => (typeof o[k] === 'function' ? (...a) => { cmd = k; return o[k](...a); } : o[k]) });
+  try { r = game.withOp(uid(), () => run(spy)); }
   finally { if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); } }
+  cmdSfx(cmd, r.ok);
   if (!r.ok) toast(errText(r.error), 'err');
   else if (okText) { const m = okText(r); if (m) toast(m, 'ok'); }
+  // v17: si el comando suma oro, las monedas salen del botón tocado (se mide antes de redibujar).
+  S.flyFrom = r.ok && btn?.isConnected ? btn.getBoundingClientRect() : null;
   if (doRefresh || !r.ok) refresh();
+  S.flyFrom = null;
   return r;
 }
 
@@ -87,7 +93,7 @@ function refreshTop({ energyOnly = false } = {}) { if (load()) drawTop(energyOnl
 
 function celebrate(report) {
   const me = report.attacker.id === S.player.id ? 'attacker' : 'defender';
-  if (report.levelUp?.[me]) toast(`¡Nivel ${S.player.level}!`, 'prize');
+  if (report.levelUp?.[me]) { toast(`¡Nivel ${S.player.level}!`, 'prize'); lvlPop(); }
   if (me === 'attacker' && report.prey) toast('¡Presa del día derrotada!', 'prize');
   if (me === 'attacker' && report.revenge && report.winner === 'attacker') toast('¡Venganza cumplida!', 'prize');
 }
@@ -117,7 +123,13 @@ function drawTop(energyOnly = false) {
   $('#en-val').textContent = `${p.energy}/${p.energyMax}`;
   tickEnergy();
   if (energyOnly) return;
-  $('#lvl-num').textContent = p.level;
+  const lv = $('#lvl-num'), lv0 = Number(lv.dataset.lv || 0);
+  lv.textContent = p.level; lv.dataset.lv = p.level;
+  // v17: subir de nivel fuera del informe (misiones, objetivos): insignia + sonido. Si hay evolución, suena la fanfarria.
+  if (lv0 && p.level > lv0 && !document.querySelector('.hunt-layer')) {
+    lvlPop();
+    queueMicrotask(() => { if (!document.querySelector('.evo-layer')) sfx('levelup', { at: 0.3 }); });
+  }
   const avKey = `${p.faction}:${stageOf(p.level)}`;
   if ($('#me-av').dataset.k !== avKey) { $('#me-av').dataset.k = avKey; $('#me-av').dataset.f = p.faction; $('#me-av').replaceChildren(avatar(p.faction, p.name, '', p.level).firstChild); }
   $('#who').textContent = p.name;
@@ -125,13 +137,24 @@ function drawTop(energyOnly = false) {
   $('#xp-txt').textContent = `${num(p.xp)}/${num(p.xpNeed)} XP`;
   $('#xp-bar').style.transform = `scaleX(${Math.min(1, p.xp / p.xpNeed)})`;
   $('#me').setAttribute('aria-label', `Ver personaje: ${p.name}, nivel ${p.level}`);
-  countUp($('#gold-val'), p.gold, compact);
+  // v17: oro que sube → monedas desde el botón (si lo hubo), count-up al llegar y lluvia de monedas sincronizada.
+  // Durante "Cazando…"/informe no suena acá: el informe hace su propio conteo.
+  const gEl = $('#gold-val'), up = p.gold > Number(gEl.dataset.v ?? p.gold) && !document.querySelector('.hunt-layer');
+  const lag = up ? flyCoins(S.flyFrom, $('#gold')) : 0;
+  const d = countUp(gEl, p.gold, compact, lag);
+  if (up) sfx('coins', { at: lag / 1000, ms: d || 350 });
   $('#rep-val').textContent = compact(p.rep);
   $('#ren-val').textContent = compact(p.renown);
   // v15.1: las cifras compactas (12,4k) se leen con su valor exacto.
   $('#gold').setAttribute('aria-label', `Oro: ${num(p.gold)}`);
   $('#rep').setAttribute('aria-label', `Reputación: ${num(p.rep)}`);
   $('#ren').setAttribute('aria-label', `Renombre: ${num(p.renown)}`);
+}
+
+function lvlPop() {
+  const me = $('#me'), b = $('#lvl-num').getBoundingClientRect();
+  me.classList.remove('lvl-up'); void me.offsetWidth; me.classList.add('lvl-up');
+  burst(b.left + b.width / 2, b.top + b.height / 2, { n: 12, cls: '.star', spread: 52 });
 }
 
 // Cuentas regresivas calculadas acá con el dato de la fachada; solo se vuelve a consultar al llegar a 0.

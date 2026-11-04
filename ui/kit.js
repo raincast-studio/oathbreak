@@ -1,4 +1,5 @@
 // Kit de interfaz: DOM mínimo, formato, toasts, hojas emergentes y count-up. Sin dependencias.
+import { sfx } from './audio.js';
 
 export const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -36,6 +37,7 @@ const P = {
   crown: 'M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z',
   close: 'M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z',
   bell: 'M12 2a1.5 1.5 0 0 0-1.5 1.5v.7a6.5 6.5 0 0 0-5 6.3V15l-2 3v1h17v-1l-2-3v-4.5a6.5 6.5 0 0 0-5-6.3v-.7A1.5 1.5 0 0 0 12 2zm-2.6 18.5a2.6 2.6 0 0 0 5.2 0z',
+  sound: 'M3 9v6h4l5 4V5L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z',
   bug: 'M12 4a4 4 0 0 1 4 4H8a4 4 0 0 1 4-4zM6 10h12v4a6 6 0 0 1-12 0zM2 12h3m14 0h3M3 7l3 2m15-2-3 2M3 19l3-2m15 2-3-2',
 };
 // Íconos de trazo (como en los mockups).
@@ -102,19 +104,46 @@ export const compact = (n) => {
   const fmt = (v, unit) => `${Math.abs(v) < 99.95 ? v.toFixed(1).replace('.', ',').replace(/,0$/, '') : num(v)}${unit}`;
   return a < 999_500 ? fmt(n / 1000, 'k') : fmt(n / 1e6, 'M');
 };
-export function countUp(el, to, fmt = num) {
+// v17: delay (ms) para arrancar cuando llegan las monedas; devuelve la duración (0 si no anima) para el sonido.
+export function countUp(el, to, fmt = num, delay = 0) {
   const from = Number(el.dataset.v ?? to);
   el.dataset.v = to;
-  cancelAnimationFrame(el._raf);
-  if (from === to || reduced()) { el.textContent = fmt(to); return; }
-  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
-  const t0 = performance.now(), dur = Math.min(900, 300 + Math.abs(to - from) * 2);
+  cancelAnimationFrame(el._raf); clearTimeout(el._bt);
+  if (from === to || reduced()) { el.textContent = fmt(to); return 0; }
+  el._bt = setTimeout(() => { el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump'); }, delay);
+  const t0 = performance.now() + delay, dur = Math.min(900, 300 + Math.abs(to - from) * 2);
   const step = (t) => {
-    const k = Math.min(1, (t - t0) / dur), e = 1 - (1 - k) ** 3;
+    const k = Math.max(0, Math.min(1, (t - t0) / dur)), e = 1 - (1 - k) ** 3;
     el.textContent = fmt(from + (to - from) * e);
     if (k < 1) el._raf = requestAnimationFrame(step);
   };
   el._raf = requestAnimationFrame(step);
+  return dur;
+}
+
+/* ---------- v17: partículas CSS livianas (se borran solas; nada con reduced-motion) ---------- */
+export function burst(x, y, { n = 10, cls = '', spread = 70, root = document.body } = {}) {
+  if (reduced()) return;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.7, r = spread * (0.55 + Math.random() * 0.6);
+    const p = h(`span.pt${cls}`, { 'aria-hidden': 'true', style: { left: `${x}px`, top: `${y}px`, '--dx': `${(Math.cos(a) * r) | 0}px`, '--dy': `${(Math.sin(a) * r) | 0}px`, '--dl': `${(Math.random() * 90) | 0}ms` } });
+    p.addEventListener('animationend', () => p.remove());
+    root.append(p);
+  }
+}
+// Monedas que vuelan desde un rectángulo (el botón tocado) hasta el oro de la barra. Devuelve cuándo llega la primera.
+export function flyCoins(from, to, n = 6) {
+  const b = to?.getBoundingClientRect?.();
+  if (!from || !b || reduced() || !b.width) return 0;
+  const x0 = from.left + from.width / 2, y0 = from.top + from.height / 2, x1 = b.left + 14, y1 = b.top + b.height / 2;
+  burst(x0, y0, { n: 8, cls: '.gold', spread: 44 });
+  for (let i = 0; i < n; i++) {
+    const c = h('span.fly-coin', { 'aria-hidden': 'true', style: { left: `${x0 + (Math.random() - 0.5) * 30}px`, top: `${y0 + (Math.random() - 0.5) * 16}px`,
+      '--dx': `${x1 - x0}px`, '--dy': `${y1 - y0}px`, '--arc': `${-40 - Math.random() * 50}px`, animationDelay: `${i * 55}ms` } });
+    c.addEventListener('animationend', () => c.remove());
+    document.body.append(c);
+  }
+  return 520;
 }
 
 /* ---------- Toasts: máximo 3, 2,5 s, aria-live ---------- */
@@ -123,6 +152,7 @@ export function toast(text, kind = 'ok') {
   if (!toastBox?.isConnected) toastBox = $('#toasts');
   if (!toastBox) return;
   const t = h(`div.toast.${kind}`, { role: kind === 'err' ? 'alert' : 'status' }, text);
+  if (kind === 'prize') sfx('notify', { soft: true });
   toastBox.append(t);
   while (toastBox.children.length > 3) toastBox.firstElementChild.remove();
   setTimeout(() => {
@@ -139,6 +169,7 @@ export const sheetOpen = () => !!current;
 
 export function openSheet({ title, body, onClose }) {
   closeSheet(true);
+  sfx('open');
   const prevFocus = document.activeElement;
   const closeBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Cerrar', onclick: () => closeSheet() }, icon('close', 20));
   const panel = h('div.sheet', { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sheet-title', tabIndex: -1 },
@@ -196,7 +227,7 @@ export function closeSheet(silent = false, fromPop = false) {
   layer.classList.add('out');
   setTimeout(() => layer.remove(), reduced() ? 0 : 260);
   if (pushed && !fromPop) { try { history.back(); } catch { /* nada */ } }
-  if (!silent) onClose?.();
+  if (!silent) { sfx('close'); onClose?.(); }
   prevFocus?.focus?.({ preventScroll: true });
 }
 

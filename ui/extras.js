@@ -1,6 +1,7 @@
 // 31/10 (plan de la revisión experta): próxima acción, escudo de novato visible, "Mientras no estabas", ceremonia de
 // evolución, PWA con avisos e invitaciones. Solo presenta lo que dice la fachada; no duplica reglas.
-import { h, icon, num, clock, toast, openSheet, closeSheet, sprite, spriteSrc, stageOf, reduced, $ } from './kit.js';
+import { h, icon, num, clock, toast, openSheet, closeSheet, sprite, spriteSrc, stageOf, reduced, $, burst } from './kit.js';
+import { sfx } from './audio.js';
 import { CFG } from '../src/game.js';
 import { claimMission } from './tabs/misiones.js';
 
@@ -131,6 +132,9 @@ export function checkEvolution(S, game) {
   $('#app').inert = true;
   requestAnimationFrame(() => el.classList.add('in'));
   el.querySelector('button')?.focus({ preventScroll: true });
+  // v17: fanfarria sincronizada con la animación (impacto a los 0,92 s, cuando aparece la etapa nueva) + chispas.
+  sfx('evolve');
+  setTimeout(() => { const s = el.querySelector('.evo-stage')?.getBoundingClientRect(); if (s) burst(s.left + s.width / 2, s.top + s.height * 0.45, { n: 18, cls: '.gold', spread: 150 }); }, 920);
 }
 // v15: tarjeta de 1080×1350 con el personaje nuevo para compartir (o descargar si el navegador no comparte archivos).
 async function shareEvolution(p, st, btn) {
@@ -212,6 +216,7 @@ function updateBanner(worker) {
     h('button.btn.gold.small', { type: 'button', onclick: () => { wantReload = true; worker.postMessage('skipWaiting'); bar.remove(); } }, 'Actualizar'),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Más tarde', onclick: () => bar.remove() }, icon('close', 18)));
   document.body.append(bar);
+  sfx('notify');
 }
 let installEvt = null;
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;

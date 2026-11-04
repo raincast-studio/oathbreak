@@ -1,7 +1,8 @@
 // Pantalla "Cazando…" (fija, CFG.ui.huntLoadingMs) e informe de combate. Solo presentación del objeto report.
 import { CFG } from '../src/game.js';
 import { details } from '../src/reports.js';
-import { h, $, icon, num, reduced, sprite } from './kit.js';
+import { h, $, icon, num, reduced, sprite, countUp, burst } from './kit.js';
+import { sfx } from './audio.js';
 
 const REASON = { KO: 'por K.O.', DAMAGE: 'por quitar más vida', TIE_DEF: 'empate: gana el defensor' };
 const BOUNTY_NO = {
@@ -44,25 +45,57 @@ export function playHunt(report, viewerId, { onReveal, onDone } = {}) {
     onReveal?.();
     el.replaceChildren(reportView(report, me, () => { close(el); onDone?.(); }));
     el.querySelector('.rep-continue')?.focus({ preventScroll: true });
+    reveal(el, report, me);
   }, ms);
 }
 
 // 31/10: golpes animados durante "Cazando…": hasta 4 golpes reales del combate (número de daño y sacudida del que lo recibe).
 // No adelanta el resultado: se eligen los primeros golpes, que no dicen quién gana.
+// v17: anticipación (el atacante toma impulso 130 ms antes), impacto con destello y aplastamiento, crítico con sacudida
+// y chispas, esquive con deslizamiento; cada golpe con su sonido. Con reduced-motion suena pero no se mueve.
+const flip = (f, cls) => { f.classList.remove(cls); void f.offsetWidth; f.classList.add(cls); };
 function hits(el, report, me, ms) {
-  if (reduced() || !report.rounds) return;
-  const seq = report.rounds.slice(0, 4);
-  seq.forEach((x, i) => setTimeout(() => {
-    const arena = el.querySelector('.arena');
-    if (!arena) return;
+  if (!report.rounds) return;
+  const rm = reduced();
+  report.rounds.slice(0, 4).forEach((x, i) => {
+    const T = ms * (0.18 + i * 0.17);
     const hitMe = (x.actor === 'A') !== (me === 'attacker'); // el golpe lo recibe "mi" luchador (izquierda)
-    const side = hitMe ? 'left' : 'right';
-    const f = arena.querySelector(`.fighter.${side}`);
-    const pop = h(`span.dmg.${side}${x.crit ? '.crit' : ''}${x.dodge ? '.miss' : ''}`, x.dodge ? '¡Esquiva!' : `−${x.dmg}${x.crit ? '!' : ''}`);
-    arena.append(pop);
-    setTimeout(() => pop.remove(), 700);
-    if (f && !x.dodge) { f.classList.remove('hit'); void f.offsetWidth; f.classList.add('hit'); }
-  }, ms * (0.18 + i * 0.17)));
+    const side = hitMe ? 'left' : 'right', from = hitMe ? 'right' : 'left';
+    const q = (s) => el.querySelector(`.arena .fighter.${s}`);
+    if (!rm) setTimeout(() => q(from)?.classList.add('atk'), T - 130);
+    setTimeout(() => {
+      sfx(x.dodge ? 'dodge' : x.crit ? 'crit' : hitMe ? 'hurt' : 'hit');
+      const arena = el.querySelector('.arena');
+      if (!arena || rm) return;
+      const a = q(from), f = q(side);
+      if (a) { a.classList.remove('atk'); flip(a, 'strike'); }
+      const pop = h(`span.dmg.${side}${x.crit ? '.crit' : ''}${x.dodge ? '.miss' : ''}`, x.dodge ? '¡Esquiva!' : `−${x.dmg}${x.crit ? '!' : ''}`);
+      arena.append(pop);
+      setTimeout(() => pop.remove(), 700);
+      if (!f) return;
+      flip(f, x.dodge ? 'dodge' : 'hit');
+      if (x.crit && !x.dodge) {
+        flip(arena, 'shake');
+        burst(f.offsetLeft + f.offsetWidth / 2, 60, { n: 10, cls: '.spark', spread: 58, root: arena });
+      }
+    }, T);
+  });
+}
+
+// v17: al aparecer el informe. Victoria/derrota con su sonido; el oro ganado cuenta desde 0 con la lluvia de monedas
+// (las recompensas entran escalonadas desde los 380 ms); si subió de nivel, suena después del botín.
+function reveal(el, r, me) {
+  sfx(r.winner === me ? 'win' : 'lose');
+  el.querySelectorAll('.reward').forEach((x, i) => x.style.setProperty('--i', i));
+  let d = 0;
+  for (const s of el.querySelectorAll('.reward.gold strong[data-n]')) {
+    s.dataset.v = 0;
+    d = Math.max(d, countUp(s, Number(s.dataset.n), (v) => `+${num(v)}`, 450));
+  }
+  if (d || el.querySelector('.reward.gold')) sfx('coins', { at: 0.45, ms: d || 350 });
+  if (r.levelUp[me]) sfx('levelup', { at: 0.45 + Math.max(d, 350) / 1000 + 0.3 });
+  const t = el.querySelector('.report.won .rep-title');
+  if (t && !reduced()) setTimeout(() => { const b = t.getBoundingClientRect(); if (t.isConnected) burst(b.left + b.width / 2, b.top + b.height / 2, { n: 14, cls: '.gold', spread: 120 }); }, 260);
 }
 
 // Informe ya resuelto (también sirve para abrir uno desde la bandeja).
@@ -71,6 +104,7 @@ export function showReport(report, viewerId, { onDone } = {}) {
   const el = layer();
   el.append(reportView(report, me, () => { close(el); onDone?.(); }));
   el.querySelector('.rep-continue')?.focus({ preventScroll: true });
+  reveal(el, report, me);
 }
 
 function reportView(r, me, done) {
@@ -86,11 +120,11 @@ function reportView(r, me, done) {
   // Botín, desde el punto de vista de quien mira.
   const loot = [];
   if (r.winner === 'attacker') {
-    loot.push(me === 'attacker' ? reward('coin', `+${num(r.loot.gold)}`, 'oro robado', 'gold') : reward('coin', `−${num(r.loot.gold)}`, 'oro robado', 'loss'));
-    if (me === 'attacker' && r.loot.win) loot.push(reward('coin', `+${num(r.loot.win)}`, 'por la victoria', 'gold'));
+    loot.push(me === 'attacker' ? reward('coin', `+${num(r.loot.gold)}`, 'oro robado', 'gold', r.loot.gold) : reward('coin', `−${num(r.loot.gold)}`, 'oro robado', 'loss'));
+    if (me === 'attacker' && r.loot.win) loot.push(reward('coin', `+${num(r.loot.win)}`, 'por la victoria', 'gold', r.loot.win));
   }
   else if (me === 'attacker') loot.push(reward('coin', '0', 'No perdiste oro', 'neutral'));
-  else if (r.loot.bounty) loot.push(reward('coin', `+${num(r.loot.bounty)}`, 'recompensa por defensa', 'gold'));
+  else if (r.loot.bounty) loot.push(reward('coin', `+${num(r.loot.bounty)}`, 'recompensa por defensa', 'gold', r.loot.bounty));
   loot.push(reward('star', `+${num(r.xp[me])}`, 'XP', 'xp'));
   if (won) loot.push(reward('shield', `+${r.rep.winner}`, 'reputación', 'rep'));
   if (me === 'attacker' && r.prey) loot.push(reward('crown', `+${num(r.prey.gold)} · +${num(r.prey.xp)} XP`, 'bono de presa ★', 'prize'));
@@ -129,6 +163,6 @@ function reportView(r, me, done) {
       h('button.btn.gold.rep-continue', { type: 'button', onclick: () => { removeEventListener('keydown', onKey); done(); } }, 'Continuar')));
 }
 
-function reward(ico, value, label, kind) {
-  return h(`div.reward.${kind}`, h('span.rw-ico', icon(ico, 18)), h('strong.tnum', value), h('span', label));
+function reward(ico, value, label, kind, n) {
+  return h(`div.reward.${kind}`, h('span.rw-ico', icon(ico, 18)), h('strong.tnum', n > 0 ? { 'data-n': n } : null, value), h('span', label));
 }
