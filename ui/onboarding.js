@@ -1,5 +1,6 @@
 // Onboarding: elegir facción → nombre → jurar lealtad. Después, "Primeros pasos" guía la primera sesión desde Base.
 import { CFG } from '../src/game.js';
+import { randomName } from '../src/moderation.js';
 import { h, toast, sprite } from './kit.js';
 import { errText } from './errors.js';
 import { signInSheet, pending } from './account.js';
@@ -9,11 +10,7 @@ const SIDES = {
   hero: { name: 'Héroes', oath: 'Juro proteger la ciudad', blurb: 'Patrullás, escoltás y rescatás. Cazás villanos y tu guarida es un cuartel de trofeos.' },
   villain: { name: 'Villanos', oath: 'Juro gobernar las sombras', blurb: 'Extorsionás, asaltás y saqueás. Cazás héroes y tu guarida es un laboratorio secreto.' },
 };
-const NAMES = {
-  hero: ['Aurora', 'Bastión', 'Centella', 'Égida', 'Faro', 'Halcón', 'Justa', 'Lumen', 'Paladín', 'Valor', 'Zafiro', 'Cometa'],
-  villain: ['Abismo', 'Ceniza', 'Cuervo', 'Espina', 'Grieta', 'Mantis', 'Niebla', 'Óxido', 'Plaga', 'Ruina', 'Umbra', 'Vórtice'],
-};
-const SUFFIX = ['', ' Rojo', ' Negro', ' de Acero', ' Nocturno', ' Veloz', ' de Fuego', ' Sombrío'];
+// v17: los nombres de "Al azar" viven en src/moderation.js (NAME_POOL): nunca sale uno bloqueado.
 
 export function showOnboarding(game, onDone) {
   let faction = null;
@@ -37,8 +34,8 @@ export function showOnboarding(game, onDone) {
     const input = h('input#hero-name.name-input', { type: 'text', maxLength: 16, autocomplete: 'off', autocapitalize: 'words', spellcheck: false, 'aria-describedby': 'name-help', placeholder: 'Tu nombre' });
     const help = h('p#name-help.muted', 'Entre 3 y 16 letras. Así te ven en la caza y en el escaparate.');
     const roll = () => {
-      const pool = NAMES[faction];
-      input.value = pool[Math.floor(Math.random() * pool.length)] + SUFFIX[Math.floor(Math.random() * SUFFIX.length)];
+      input.value = randomName(faction);
+      help.textContent = 'Entre 3 y 16 letras. Así te ven en la caza y en el escaparate.'; help.classList.remove('err-text');
       input.focus();
     };
     const submit = (e) => {
@@ -46,7 +43,7 @@ export function showOnboarding(game, onDone) {
       const r = game.newCharacter(input.value, faction);
       if (!r.ok) { help.textContent = errText(r.error); help.classList.add('err-text'); input.focus(); return; }
       root.classList.add('out');
-      setTimeout(() => { root.remove(); onDone(); toast(`¡Bienvenido, ${input.value.trim()}!`, 'prize'); }, 250);
+      setTimeout(() => { root.remove(); onDone(); toast(`¡Bienvenido, ${game.state().player?.name ?? input.value.trim()}!`, 'prize'); }, 250);
     };
     root.replaceChildren(h('form.onb-inner', { onsubmit: submit },
       h('p.eyebrow', 'Paso 2 de 2'),
