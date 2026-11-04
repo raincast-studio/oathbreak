@@ -4,6 +4,26 @@ import { h, icon, num, clock, toast, openSheet, closeSheet, avatar } from '../ki
 import { segmented } from './guarida.js';
 import { accountCard } from '../account.js';
 import { notifyState, askNotify, installState, installButton } from '../extras.js';
+import * as A from '../audio.js';
+
+// v17: Ajustes del dispositivo (sonido, música, vibración). Se guardan en este dispositivo, no en la partida.
+function settingsSheet() {
+  const row = (k, name, desc, ok) => h('div.set-row',
+    h('div.set-txt', h('strong', { id: `set-${k}` }, name), h('span.muted', desc)),
+    h('button.switch', { type: 'button', role: 'switch', 'aria-labelledby': `set-${k}`, 'aria-checked': String(ok && A.prefs()[k]), disabled: !ok, onclick: (e) => {
+      const on = e.currentTarget.getAttribute('aria-checked') !== 'true';
+      A.setPref(k, on);
+      e.currentTarget.setAttribute('aria-checked', String(on));
+      if (on && k === 'sound') A.sfx('coin');
+      if (on && k === 'vibe') A.vibe(40);
+    } }, h('span.knob')));
+  const au = A.supported(), vb = A.canVibrate();
+  openSheet({ title: 'Ajustes', body: h('section.card.settings',
+    row('sound', 'Sonido', au ? 'Golpes, monedas, botones y fanfarrias.' : 'Este navegador no reproduce sonido.', au),
+    row('music', 'Música', au ? 'Música ambiente suave de tu facción. Gasta un poco más de batería.' : 'Este navegador no reproduce sonido.', au),
+    row('vibe', 'Vibración', vb ? 'Golpes recibidos, críticos, victorias y subidas de nivel.' : 'Tu dispositivo no vibra desde el navegador (por ejemplo, en iPhone).', vb),
+    h('p.muted.hint', 'Estos ajustes son de este dispositivo: no viajan con tu partida.')) });
+}
 
 // 31/10: avisos (misión terminada, energía llena, te atacaron) e instalación como app.
 function notifyCard(ctx) {
@@ -39,7 +59,8 @@ export function render(ctx) {
       h('div.t-info',
         h('h1.display', p.name),
         h('span.muted', `${FAC[p.faction]} · Nivel ${p.level} · ${num(p.maxHp)} de vida`),
-        h('span.muted.tnum', `${p.record.w} victorias · ${p.record.l} derrotas · ${num(p.rep)} reputación`))),
+        h('span.muted.tnum', `${p.record.w} victorias · ${p.record.l} derrotas · ${num(p.rep)} reputación`)),
+      h('button.icon-btn.set-btn', { type: 'button', 'aria-label': 'Ajustes: sonido, música y vibración', onclick: settingsSheet }, icon('sound', 22))),
     segmented(subs, UI.sub, (k) => { UI.sub = k; ctx.refresh(); }),
     UI.sub === 'atributos' ? statsView(ctx) : UI.sub === 'equipo' ? gearView(ctx) : UI.sub === 'banco' ? bankView(ctx) : UI.sub === 'cuenta' ? h('div.stack', accountCard(ctx), notifyCard(ctx)) : seasonView(ctx));
 }

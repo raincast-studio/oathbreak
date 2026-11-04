@@ -725,6 +725,85 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .gift-thumb .swatch { width: 40px; height: 40px; }
 .room-wall { height: 34px; }
 .code-input { text-align: center; font-size: 28px; letter-spacing: .5em; font-variant-numeric: tabular-nums; }
+/* v17-audio: game feel sincronizado con el sonido (partículas, monedas, impacto, informe, nivel, evolución) y Ajustes */
+.pt { position: fixed; z-index: 90; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; pointer-events: none; background: var(--gold);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--gold) 70%, transparent); animation: v17-pt 640ms var(--ease-out) var(--dl, 0ms) both; }
+.pt.star { width: 7px; height: 7px; border-radius: 1px; rotate: 45deg; background: #FFF4C2; }
+.pt.spark { width: 6px; height: 6px; background: #fff; box-shadow: 0 0 10px #FFD34D, 0 0 3px #FF8A3D; }
+.arena .pt { position: absolute; z-index: 4; }
+@keyframes v17-pt { 0% { opacity: 1; transform: translate(0, 0) scale(1.3); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.3); } }
+.fly-coin { position: fixed; z-index: 90; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 35%, #FFF1A8, var(--gold) 55%, var(--gold-sh)); box-shadow: 0 0 0 1.5px var(--gold-sh), 0 0 10px color-mix(in srgb, var(--gold) 60%, transparent);
+  animation: v17-fly 520ms cubic-bezier(.55, 0, .8, .2) both; }
+@keyframes v17-fly { 0% { opacity: 0; transform: translate(0, 0) scale(.4); } 18% { opacity: 1; transform: translate(calc(var(--dx) * .06), var(--arc)) scale(1.15); } 100% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(.65); } }
+.chip.gold:has(strong.bump) .chip-ico { animation: v17-coin 520ms var(--ease-pop); }
+@keyframes v17-coin { 0% { transform: scale(1); } 35% { transform: scale(1.35) rotateY(180deg); box-shadow: 0 0 14px var(--gold); } 100% { transform: none; } }
+/* Subir de nivel: anticipación (se encoge), overshoot, anillo y la XP brilla */
+.me-btn.lvl-up { animation: v17-lvl 720ms var(--ease-pop); }
+.me-btn.lvl-up .me-lvl { animation: v17-badge 820ms var(--ease-pop); }
+.me-btn.lvl-up::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--gold); pointer-events: none; animation: v17-ring 760ms var(--ease-out) 120ms both; }
+.me-btn.lvl-up + .me-info .me-xp { animation: v17-glow 900ms ease-out; }
+@keyframes v17-lvl { 18% { transform: scale(.88); } 48% { transform: scale(1.14); } }
+@keyframes v17-badge { 10% { transform: scale(.8); } 42% { transform: scale(1.65); background: var(--gold); } }
+@keyframes v17-ring { 0% { opacity: 0; transform: scale(.6); } 12% { opacity: 1; } 100% { opacity: 0; transform: scale(1.8); } }
+@keyframes v17-glow { 30% { box-shadow: 0 0 0 3px var(--gold), 0 0 14px var(--gold); } }
+/* "Cazando…": impulso del atacante, golpe con destello y aplastamiento, esquive, crítico con sacudida */
+.fighter.atk .sprite { animation: v17-windup 130ms ease-in both; }
+.fighter.strike .sprite { animation: v17-strike 240ms var(--ease-out); }
+.fighter.hit .sprite { animation: v17-hit 320ms linear; filter: none; }
+.fighter.dodge .sprite { animation: v17-dodge 340ms var(--ease-out); }
+@keyframes v17-windup { to { translate: -10px 2px; rotate: -9deg; scale: 1.04 .95; } }
+@keyframes v17-strike { 0% { translate: -10px 2px; rotate: -9deg; } 35% { translate: 16px 0; rotate: 7deg; scale: 1.06 .97; } 100% { translate: 0; rotate: 0deg; scale: 1; } }
+@keyframes v17-hit { 0% { filter: brightness(3) saturate(0); scale: .9 1.08; } 15% { filter: brightness(2) drop-shadow(0 0 10px #FF4D5E); translate: 7px 0; } 35% { translate: -6px 0; scale: 1.04 .97; }
+  60% { translate: 3px 0; filter: brightness(1.2) drop-shadow(0 0 6px #FF4D5E); } 100% { translate: 0; scale: 1; filter: none; } }
+@keyframes v17-dodge { 30% { translate: -22px -8px; opacity: .4; } 100% { translate: 0; opacity: 1; } }
+.arena.shake { animation: v17-shake 280ms linear; }
+@keyframes v17-shake { 20% { translate: -7px 3px; } 40% { translate: 6px -3px; } 60% { translate: -4px 2px; } 80% { translate: 2px 0; } }
+.dmg.crit { animation-name: v17-crit; }
+@keyframes v17-crit { 0% { opacity: 0; transform: scale(2.4) rotate(-8deg); } 18% { opacity: 1; transform: scale(.9) rotate(4deg); } 30% { transform: scale(1.12) rotate(0); } 100% { opacity: 0; transform: translateY(-30px); } }
+/* Informe: VICTORIA se estampa (con rayos y chispas), DERROTA cae y se tambalea; la vida se descuenta; el botín entra escalonado */
+.rep-title { animation: v17-stamp 560ms var(--ease-pop) 60ms both; }
+.report.lost .rep-title { animation: v17-drop 640ms var(--ease-out) 60ms both; }
+@keyframes v17-stamp { 0% { opacity: 0; transform: scale(2.3); } 45% { opacity: 1; transform: scale(.9); } 70% { transform: scale(1.06); } 100% { transform: none; } }
+@keyframes v17-drop { 0% { opacity: 0; transform: translateY(-36px); } 55% { opacity: 1; transform: translateY(4px); } 70% { transform: rotate(-2deg); } 85% { transform: rotate(1.5deg); } 100% { transform: none; } }
+.report.won .rep-head { position: relative; isolation: isolate; }
+.report.won .rep-head::before { content: ''; position: absolute; left: 50%; top: 50%; width: 320px; height: 320px; margin: -160px 0 0 -160px; z-index: -1; border-radius: 50%; pointer-events: none;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--gold) 26%, transparent) 0 10deg, transparent 10deg 30deg);
+  -webkit-mask: radial-gradient(closest-side, #000 25%, transparent); mask: radial-gradient(closest-side, #000 25%, transparent); animation: v17-rays 1.4s var(--ease-out) 100ms both; }
+@keyframes v17-rays { from { opacity: 0; transform: scale(.3) rotate(-40deg); } }
+.report .hp-track span { animation: v17-drain 760ms var(--ease-out) 320ms both; }
+@keyframes v17-drain { from { transform: scaleX(1); } }
+.report .reward { animation: v17-rw 420ms var(--ease-pop) calc(380ms + var(--i, 0) * 90ms) both; }
+@keyframes v17-rw { from { opacity: 0; transform: translateY(14px) scale(.8); } }
+.rep-notes strong { display: inline-block; animation: v17-note 600ms var(--ease-pop) 1.15s both; }
+@keyframes v17-note { from { opacity: 0; transform: scale(.6); } 60% { opacity: 1; transform: scale(1.12); } }
+/* ¡Evolucionaste!: destello y onda al aparecer la etapa nueva (0,92 s, con el impacto del sonido) */
+.evo-title { animation: v17-stamp 640ms var(--ease-pop) both; }
+.evo-stage { animation: v17-thump 420ms var(--ease-pop) .92s both; }
+.evo-stage::after { content: ''; position: absolute; left: 50%; top: 45%; width: 220px; height: 220px; margin: -110px 0 0 -110px; border-radius: 50%; border: 4px solid var(--gold); pointer-events: none;
+  animation: v17-ring 820ms var(--ease-out) .92s both; }
+.evo-layer::after { content: ''; position: fixed; inset: 0; background: #fff; pointer-events: none; animation: v17-flash 620ms ease-out .9s both; }
+@keyframes v17-thump { 30% { transform: scale(1.08); } }
+@keyframes v17-flash { 0% { opacity: 0; } 12% { opacity: .5; } 100% { opacity: 0; } }
+/* Ajustes (sonido, música, vibración) */
+.hero-card .set-btn { margin-left: auto; align-self: flex-start; color: var(--ink); }
+.settings { display: grid; gap: 0; }
+.set-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1.5px solid var(--line); }
+.set-row:last-of-type { border-bottom: 0; }
+.set-txt { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.set-txt .muted { font-size: 13px; line-height: 1.35; }
+.switch { flex: none; position: relative; width: 56px; height: 32px; padding: 0; border-radius: 999px; border: 2px solid var(--line); background: var(--surface-2); transition: background var(--t) var(--ease-out); }
+.switch::before { content: ''; position: absolute; inset: -8px -4px; } /* área táctil de 48 px */
+.switch .knob { position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: var(--muted); transition: transform var(--t) var(--ease-pop), background var(--t); }
+.switch[aria-checked="true"] { background: var(--fac); border-color: var(--fac-sh); }
+.switch[aria-checked="true"] .knob { transform: translateX(24px); background: #fff; }
+.switch:disabled { opacity: .45; }
+@media (prefers-reduced-motion: reduce) {
+  .pt, .fly-coin, .report.won .rep-head::before, .evo-stage::after, .evo-layer::after, .me-btn.lvl-up::after { display: none; }
+  .rep-title, .report.lost .rep-title, .report .hp-track span, .report .reward, .rep-notes strong, .evo-title, .evo-stage, .me-btn.lvl-up, .me-btn.lvl-up .me-lvl,
+  .me-btn.lvl-up + .me-info .me-xp, .arena.shake, .fighter .sprite, .chip.gold .chip-ico { animation: none !important; }
+}
+/* /v17-audio */
 </style>
 </head>
 <body>
