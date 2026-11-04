@@ -1,5 +1,5 @@
 // v17: sonido procedural (WebAudio) y vibración, sin archivos ni dependencias. En Node o sin WebAudio: no-op.
-// Paleta: Héroe = metales brillantes, mayor; Villano = cuerdas oscuras filtradas, menor y más grave (oro y UI, igual).
+// Paleta: Héroe = metal brillante, mayor; Villano = cuerda oscura, menor y más grave (oro y UI, igual).
 // Mezcla: voces → bus SFX/Música → compresor → limitador. Cada voz varía ±4 % de tono y volumen, y baja si se repite.
 // Cero CPU en reposo: las voces se detienen solas y el contexto se suspende 1,5 s después del último sonido (salvo
 // música) y al ocultar la pestaña. Preferencias del dispositivo (no de la partida): localStorage 'oathbreak.device'.
@@ -7,7 +7,7 @@ const G = typeof window === 'undefined' ? null : window;
 const AC = G && (G.AudioContext || G.webkitAudioContext);
 const KEY = 'oathbreak.device';
 const P = { sound: true, music: false, vibe: true };
-try { Object.assign(P, JSON.parse(G?.localStorage?.getItem(KEY) || '{}')); } catch { /* por defecto */ }
+try { Object.assign(P, JSON.parse(G?.localStorage?.getItem(KEY) || '{}')); } catch {}
 
 export const prefs = () => ({ ...P });
 export const supported = () => !!AC;
@@ -15,13 +15,12 @@ export const canVibrate = () => typeof G?.navigator?.vibrate === 'function';
 export function setPref(k, v) {
   if (!(k in P)) return;
   P[k] = !!v;
-  try { G?.localStorage?.setItem(KEY, JSON.stringify(P)); } catch { /* nada */ }
+  try { G?.localStorage?.setItem(KEY, JSON.stringify(P)); } catch {}
   if (k === 'music') { if (v) { boot(); wake(); musStart(); } else musStop(); }
 }
 
-/* ---------- Contexto y mezcla ---------- */
 let ctx = null, sfxBus, comp, noise, idleT = 0, lastAny = 0;
-const mus = { on: false, bus: null, t: 0, i: 0, timer: 0 };
+const mus = { on: false, bus: null, t: 0, i: 0, timer: 0, n: [] };
 const params = (n, o) => { for (const k in o) n[k].value = o[k]; return n; };
 function boot() {
   if (ctx || !AC) return ctx;
@@ -62,7 +61,6 @@ if (G) {
   });
 }
 
-/* ---------- Voces ---------- */
 const m = (n) => 440 * 2 ** ((n - 69) / 12); // MIDI → Hz
 function env(p, t, d, g, a) {
   p.setValueAtTime(0.0001, t);
@@ -79,6 +77,7 @@ function osc(t, f, d, { type = 'sine', g = 0.1, a = 0.004, to, det = 0, lp, bus 
   if (lp) { n = ctx.createBiquadFilter(); n.type = 'lowpass'; n.frequency.value = lp; o.connect(n); }
   n.connect(v).connect(bus);
   o.start(t); o.stop(t + d + 0.03);
+  return o;
 }
 function hiss(t, d, { g = 0.1, f = 1000, to, q = 1, type = 'bandpass', a = 0.003 } = {}) {
   const s = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), v = ctx.createGain();
@@ -202,9 +201,9 @@ export function sfx(name, o = {}) {
 }
 export function vibe(p) {
   if (!P.vibe || !canVibrate() || hidden()) return;
-  try { G.navigator.vibrate(p); } catch { /* nada */ }
+  try { G.navigator.vibrate(p); } catch {}
 }
-// Comando de la fachada → sonido (act() en ui/main.js). Los cobros de oro suenan con el count-up.
+// Comando de la fachada → sonido (act() en ui/main.js). El oro cobrado suena con el count-up.
 const CMD = {
   claimMission: 'quest', claimDaily: 'quest', claimSeasonTier: 'quest', welcomeBonus: 'quest', startMission: 'go', cancelMission: 'close',
   buyStat: 'buy', autoSpend: 'buy', buyGear: 'buy', buyItem: 'buy', buyRenownItem: 'buy', deposit: 'buy', upgradeBuilding: 'build', buyRoom: 'build',
@@ -230,7 +229,7 @@ function pad(t, f, d, g, V, bus) {
     v.gain.setValueAtTime(g, t + d - 1.2);
     v.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.9);
     o.connect(fl).connect(v).connect(bus);
-    o.start(t); o.stop(t + d + 1);
+    o.start(t); o.stop(t + d + 1); mus.n.push(o);
   }
 }
 function musTick() {
@@ -240,10 +239,9 @@ function musTick() {
   for (const n of ch.slice(1)) pad(t, m(n), BAR, 0.018, V, mus.bus);
   for (let s = 0; s < 4; s++) if (Math.random() < 0.45) {
     const n = ch[1 + ((Math.random() * 3) | 0)] + 12, tt = t + s * 1.2 + Math.random() * 0.2;
-    osc(tt, m(n), 2.2, { g: 0.022, a: 0.01, bus: mus.bus });
-    osc(tt, m(n) * 2.76, 0.8, { g: 0.005, bus: mus.bus });
+    mus.n.push(osc(tt, m(n), 2.2, { g: 0.022, a: 0.01, bus: mus.bus }), osc(tt, m(n) * 2.76, 0.8, { g: 0.005, bus: mus.bus }));
   }
-  mus.t = t + BAR;
+  mus.t = t + BAR; mus.n = mus.n.slice(-40);
   mus.timer = setTimeout(musTick, Math.max(50, (mus.t - ctx.currentTime - 0.6) * 1000));
 }
 function musStart() {
@@ -259,6 +257,7 @@ function musStop(now = false) {
   if (!mus.on) return;
   mus.on = false; clearTimeout(mus.timer);
   const b = mus.bus, t = ctx.currentTime;
+  for (const o of mus.n.splice(0)) try { o.stop(t + 0.7); } catch {}
   b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(b.gain.value || 0.0001, t); b.gain.exponentialRampToValueAtTime(0.0001, t + (now ? 0.05 : 0.6));
   setTimeout(() => b.disconnect(), now ? 100 : 700);
   rest(0.7);
