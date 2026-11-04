@@ -180,3 +180,19 @@ test('descargar mis datos: el guardado completo en JSON', () => {
   assert.equal(d.entities.p0.name, 'Tester');
   assert.equal(createGame({ storage: memoryStorage() }).exportData(), null);
 });
+
+test('seguridad del cliente: CSP en index.html y sin innerHTML con datos ajenos', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const csp = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/)?.[1] ?? '';
+  for (const d of ["default-src 'self'", "object-src 'none'", "base-uri 'self'", 'https://*.supabase.co', 'wss://*.supabase.co', 'https://fonts.gstatic.com']) assert.ok(csp.includes(d), d);
+  assert.ok(!/script-src[^;]*'unsafe-(inline|eval)'/.test(csp));
+  assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('fonts.googleapis.com/css2'), 'la CSP va antes de cargar recursos');
+  // innerHTML solo en art.js (SVG del catálogo) y en el helper h() (prop html, que nadie usa con datos).
+  const files = [...readdirSync(new URL('../ui/', import.meta.url)).map((f) => `ui/${f}`), ...readdirSync(new URL('../ui/tabs/', import.meta.url)).map((f) => `ui/tabs/${f}`)].filter((f) => f.endsWith('.js'));
+  for (const f of files) {
+    const src = readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, ''); // sin comentarios
+    if (!['ui/art.js', 'ui/kit.js'].includes(f)) assert.ok(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(src), `${f} usa un sumidero de HTML`);
+    assert.ok(!/[{,]\s*html\s*:/.test(src), `${f} usa la prop html de h()`);
+  }
+});

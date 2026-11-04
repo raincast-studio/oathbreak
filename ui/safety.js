@@ -35,11 +35,11 @@ export function reportSheet(target, where, ref = null, { onClose } = {}) {
   let reason = null;
   const send = h('button.btn.crimson.wide', { type: 'submit', disabled: true }, 'Enviar reporte');
   const count = h('span.muted.hint.tnum', `0/${Mod.NOTE_MAX}`);
-  const note = h('textarea.name-input.rep-note', { rows: 2, maxLength: Mod.NOTE_MAX, placeholder: 'Nota opcional (qué pasó, dónde lo viste)', 'aria-label': 'Nota opcional',
+  const note = h('textarea.name-input.rr-note', { rows: 2, maxLength: Mod.NOTE_MAX, placeholder: 'Nota opcional (qué pasó, dónde lo viste)', 'aria-label': 'Nota opcional',
     oninput: () => { count.textContent = `${Array.from(note.value).length}/${Mod.NOTE_MAX}`; } });
   const msg = h('p.muted', { role: 'status' });
-  const options = h('div.rep-reasons', { role: 'radiogroup', 'aria-label': 'Motivo' }, REASONS.map(([k, label, desc]) => h('label.rep-reason',
-    h('input', { type: 'radio', name: 'rep-reason', value: k, onchange: () => { reason = k; send.disabled = false; } }),
+  const options = h('div.rr-list', { role: 'radiogroup', 'aria-label': 'Motivo' }, REASONS.map(([k, label, desc]) => h('label.rr-opt',
+    h('input', { type: 'radio', name: 'rr-opt', value: k, onchange: () => { reason = k; send.disabled = false; } }),
     h('span.rr-txt', h('strong', label), h('span.muted', desc)))));
 
   const submit = (e) => {
@@ -54,8 +54,8 @@ export function reportSheet(target, where, ref = null, { onClose } = {}) {
   };
   const done = () => {
     const muted = isMuted(target.id);
-    openSheet({ title: 'Reporte enviado', onClose, body: h('div.stack.rep-done',
-      h('span.rep-check', { 'aria-hidden': 'true' }, '✓'),
+    openSheet({ title: 'Reporte enviado', onClose, body: h('div.stack.rr-done',
+      h('span.rr-check', { 'aria-hidden': 'true' }, '✓'),
       h('p', h('strong', '¡Gracias por avisar!'), ' Lo revisa una persona del equipo. Si confirmamos el problema, aplicamos las sanciones de los Términos.'),
       h('p.muted.hint', `${target.name} no se entera de quién lo reportó.`),
       G && !muted ? h('button.btn.ghost.wide', { type: 'button', onclick: (ev) => { if (mute(target, true)) { ev.currentTarget.disabled = true; ev.currentTarget.textContent = 'Silenciado'; } } }, `Silenciar también a ${target.name}`) : null,
@@ -65,7 +65,7 @@ export function reportSheet(target, where, ref = null, { onClose } = {}) {
   openSheet({ title: `Reportar a ${target.name}`, onClose, body: h('form.stack', { onsubmit: submit },
     h('p.muted', '¿Por qué lo reportás? Elegí un motivo.'),
     options,
-    h('div.rep-note-box', note, count),
+    h('div.rr-note-box', note, count),
     send, msg,
     h('button.link-btn', { type: 'button', onclick: () => closeSheet() }, 'Cancelar')) });
 }
@@ -101,7 +101,7 @@ export function playerMenuBtn(ctx, target, where) {
 }
 // Informe de combate: enlace "Reportar a X".
 export const reportLink = (foe, ref) => (foe?.id
-  ? h('button.link-btn.rep-report', { type: 'button', onclick: () => reportSheet({ id: foe.id, name: foe.name }, 'combate', typeof ref === 'string' ? ref : null) }, `Reportar a ${foe.name}`)
+  ? h('button.link-btn.rr-report', { type: 'button', onclick: () => reportSheet({ id: foe.id, name: foe.name }, 'combate', typeof ref === 'string' ? ref : null) }, `Reportar a ${foe.name}`)
   : null);
 
 // Cuenta: lista de silenciados con "Quitar".
