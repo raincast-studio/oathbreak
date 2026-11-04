@@ -129,6 +129,9 @@ const SIDE = {
   sarcofago: () => shadow(100, 96, 90) + R(22, 70, 156, 24, '#4A4560', 5) + P('M12 50L44 20H172L190 36V64L172 80H44Z', '#C9A13B') + P('M24 50L50 28H168L180 40V60L168 72H50Z', '#3A2B5C')
     + E(56, 50, 15, 17, '#E8C77A') + C(52, 44, 3, OL) + C(52, 56, 3, OL) + L('M64 46V54', OL, 3) + L('M38 36Q30 50 38 64', '#4FA3FF', 4)
     + L('M100 32V68M126 30V70M150 32V68', '#C9A13B', 4) + P('M76 44L86 50L76 56Z', '#E2364B', 'stroke-width="3"'),
+  banco_plaza: () => shadow(50, 194, 44) + R(14, 26, 54, 140, '#4FB27F', 6) + L('M28 30V162M41 30V162M54 30V162', '#2F7A55', 2.5) + R(62, 18, 22, 154, '#3E9B6E', 6)
+    + L('M73 24V166', '#2F7A55', 2.5) + R(10, 20, 80, 10, IRON, 4) + R(10, 150, 80, 12, IRON, 5) + R(14, 160, 10, 32, IRON, 3) + R(76, 160, 10, 32, IRON, 3)
+    + C(19, 156, 6, '#5C5670', 'stroke-width="2.5"') + C(81, 156, 6, '#5C5670', 'stroke-width="2.5"') + pigeon(38, 84, 0.8) + HL('M20 36V150', 3),
   tanque_clones: () => shadow(100, 96, 90) + R(26, 24, 148, 62, 'rgba(61,220,151,.45)', 30) + '<ellipse cx="106" cy="56" rx="38" ry="13" fill="#2A8A5C" opacity=".8"/><circle cx="58" cy="56" r="12" fill="#2A8A5C" opacity=".85"/>'
     + C(140, 40, 3, '#E8FFF4', 'stroke-width="1.5"') + C(84, 74, 4, '#E8FFF4', 'stroke-width="1.5"') + HL('M42 36H160', 5)
     + R(8, 16, 26, 76, '#5C5670', 6) + R(166, 16, 26, 76, '#5C5670', 6) + C(21, 36, 4, '#3DDC97', 'stroke-width="2"') + C(179, 36, 4, '#E2364B', 'stroke-width="2"'),
@@ -185,6 +188,15 @@ const bird = ({ body, belly, wing, beak = '#F5B43C', crest = '', eyeR = 5, eyeRi
   + P('M76 56Q86 76 70 86Q66 70 66 58Z', wing) + crest + E(50, 36, 24, 21, body)
   + (eyeRing ? C(41, 35, 9, eyeRing) + C(59, 35, 9, eyeRing) : '') + eyes(41, 59, 35, eyeR) + P('M46 42L54 42L50 50Z', beak)
   + R(40, 88, 6, 6, beak, 2, 'stroke-width="3"') + R(54, 88, 6, 6, beak, 2, 'stroke-width="3"');
+
+const IRON = '#3A3550';
+// Extremo de hierro fundido del banco de plaza: pata con voluta y apoyabrazos (x: borde de afuera; r: lado derecho).
+const bend = (x, r = false) => { const k = r ? -1 : 1, X = (d) => x + d * k, d = `M${X(5)} 94Q${X(15)} 78 ${X(11)} 62Q${X(7)} 42 ${X(21)} 42Q${X(34)} 42 ${X(32)} 54Q${X(30)} 63 ${X(21)} 59`;
+  return L(d, OL, 11) + L(d, IRON, 6) + L(d, 'rgba(255,255,255,.25)', 2) + L(`M${X(-1)} 94H${X(13)}`, OL, 6); };
+// Paloma chica (posada en el banco de plaza).
+const pigeon = (x, y, s = 1) => P(`M${x - 14 * s} ${y + 4 * s}L${x - 24 * s} ${y + 8 * s}L${x - 16 * s} ${y - 2 * s}Z`, '#7E7896', 'stroke-width="3"') + E(x, y + 2 * s, 14 * s, 10 * s, '#A69EB3')
+  + C(x + 10 * s, y - 8 * s, 7 * s, '#A69EB3') + E(x + 7 * s, y - 1 * s, 5 * s, 4 * s, '#5CBFA0', 'stroke-width="0"') + C(x + 12 * s, y - 10 * s, 1.8 * s, OL, 'stroke-width="0"')
+  + P(`M${x + 16 * s} ${y - 9 * s}L${x + 22 * s} ${y - 7 * s}L${x + 16 * s} ${y - 5 * s}Z`, '#F5B43C', 'stroke-width="2"') + L(`M${x - 4 * s} ${y + 2 * s}Q${x + 2 * s} ${y + 6 * s} ${x + 6 * s} ${y + 2 * s}`, '#7E7896', 2.5);
 
 /* ---------- Objetos ---------- */
 const ART = {
@@ -341,8 +353,13 @@ const ART = {
     + [[8, 8], [92, 8], [8, 92], [92, 92]].map(([x, y]) => C(x, y, 7, '#E2364B', 'stroke-width="3"')).join('') + sparkle(80, 22, 6),
   estandarte_victoria: () => banner('#8E44F0', '#B07CFF', P('M36 50L44 34L50 44L56 34L64 50Z', '#FFC93C', 'stroke-width="3"') + R(36, 50, 28, 6, '#FFC93C', 2, 'stroke-width="3"'), '#FFC93C'),
   // Temporada
-  temp_aura: () => `<circle cx="50" cy="56" r="40" fill="#8E44F0" opacity=".25"/><circle cx="50" cy="56" r="28" fill="#B07CFF" opacity=".35"/>` + shadow(50, 94, 24)
-    + E(50, 84, 22, 7, '#5C5670') + P('M50 20Q66 46 50 76Q34 46 50 20Z', '#B07CFF') + P('M50 34Q58 50 50 66Q42 50 50 34Z', '#F4EEFF', 'stroke-width="0"') + sparkle(22, 30, 7) + sparkle(78, 44, 6) + sparkle(30, 70, 4),
+  // v17: cristal de aurora que flota sobre un pebetero dorado, con un anillo de luz que lo orbita (mitad atrás, mitad adelante).
+  temp_aura: () => lampGlow(50, 40, 42, '#5CC8FF') + lampGlow(50, 36, 26, '#B07CFF') + shadow(50, 94, 24) + '<ellipse cx="50" cy="92" rx="30" ry="6" fill="#5CC8FF" opacity=".3"/>'
+    + L('M17 40A33 11 0 0 1 83 40', 'rgba(255,241,176,.75)', 3) + R(32, 80, 36, 12, '#5C5670', 4) + P('M38 81L42 66H58L62 81Z', '#C9A13B')
+    + E(50, 64, 21, 6, '#FFC93C') + E(50, 63, 13, 3, '#2A1744', 'stroke-width="0"') + `<path d="M50 8L64 31L50 56L36 31Z" fill="url(#au)" ${S}/>`
+    + '<path d="M50 8L64 31L50 56L36 31Z" fill="#fff" opacity=".22"/>' + L('M36 31H64M50 8V56', 'rgba(255,255,255,.6)', 2)
+    + '<path d="M50 12L59 30H50Z" fill="#fff" opacity=".7"/>' + L('M83 40A33 11 0 0 1 17 40', '#FFF1B0', 3.5) + C(21, 45, 3.5, '#FFF1B0', 'stroke-width="2"')
+    + C(74, 49, 3, '#3DDC97', 'stroke-width="2"') + sparkle(80, 16, 6) + sparkle(18, 22, 5, '#BDE8FF') + sparkle(86, 68, 4),
   temp_estatua: () => shadow(50, 196, 36) + R(16, 160, 68, 32, '#8A8296', 4) + R(22, 150, 56, 14, '#A69EB3', 4) + P('M34 150L38 92H62L66 150Z', '#C9C2D6')
     + P('M30 96Q50 80 70 96L66 106H34Z', '#B8AFC8') + C(50, 64, 18, '#C9C2D6') + L('M70 92L88 40', OL, 8) + L('M70 92L88 40', '#D9D3E3', 4) + flame(88, 36, 0.8, '#B07CFF', '#F4EEFF')
     + L('M24 176H76', '#FFC93C', 4) + HL('M42 100V144'),
@@ -355,9 +372,11 @@ const ART = {
     + `<rect x="28" y="24" width="44" height="52" fill="url(#au)" ${S}/>` + sparkle(50, 50, 9, '#F4EEFF') + R(24, 74, 52, 10, '#5C5670', 3),
   busto: () => shadow(50, 94, 26) + R(26, 78, 48, 14, '#8A8296', 4) + R(32, 70, 36, 10, '#A69EB3', 3) + P('M20 72Q24 48 50 48Q76 48 80 72Z', '#C9C2D6')
     + C(50, 32, 18, '#D9D3E3') + P('M32 26Q36 8 50 10Q66 8 68 26Q60 18 50 20Q40 18 32 26Z', '#B8AFC8', 'stroke-width="3"') + L('M44 36Q50 40 56 36', OL, 2.5) + HL('M38 24Q42 18 48 16'),
-  banco_plaza: () => shadow(100, 96, 88) + R(14, 10, 172, 14, '#3E9B6E', 4) + R(14, 30, 172, 14, '#3E9B6E', 4) + R(10, 52, 180, 14, '#3E9B6E', 4)
-    + P('M22 8V92M178 8V92', 'none', 'stroke="#22152F" stroke-width="10"') + P('M22 8V92M178 8V92', 'none', 'stroke="#4A4560" stroke-width="5"')
-    + L('M16 92Q22 82 30 92M170 92Q178 82 184 92', '#4A4560', 5),
+  // v17: banco de plaza de listones verdes con hierro fundido en volutas, placa de renombre y una paloma de visita.
+  banco_plaza: () => shadow(100, 95, 88) + R(30, 8, 8, 56, IRON, 3) + R(162, 8, 8, 56, IRON, 3)
+    + R(24, 12, 152, 12, '#3E9B6E', 5) + R(24, 28, 152, 12, '#3E9B6E', 5) + R(24, 44, 152, 10, '#3E9B6E', 4) + R(88, 30, 24, 9, '#FFC93C', 2, 'stroke-width="2.5"')
+    + R(16, 56, 168, 10, '#4FB27F', 4) + R(14, 64, 172, 12, '#3E9B6E', 5) + HL('M30 16H170', 3) + HL('M22 59H178', 2.5)
+    + bend(14) + bend(186, true) + pigeon(148, 44, 1.2),
   fuente: () => shadow(100, 192, 90) + E(100, 160, 88, 30, '#A69EB3') + E(100, 154, 74, 20, '#3A8FD0') + R(86, 70, 28, 84, '#C9C2D6', 6) + E(100, 76, 40, 14, '#A69EB3')
     + E(100, 72, 30, 9, '#5CC8FF', 'stroke-width="3"') + R(92, 26, 16, 46, '#C9C2D6', 5) + C(100, 22, 10, '#C9C2D6')
     + L('M100 12Q76 20 70 64M100 12Q124 20 130 64', '#BDE8FF', 4) + L('M76 76Q52 92 48 146M124 76Q148 92 152 146', '#BDE8FF', 4) + C(60, 154, 3, '#FFC93C', 'stroke-width="0"') + C(136, 158, 3, '#FFC93C', 'stroke-width="0"'),
