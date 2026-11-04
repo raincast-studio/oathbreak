@@ -15,11 +15,13 @@ const SIDES = {
 
 export function showOnboarding(game, onDone) {
   let faction = null;
+  const notice = cloud.takeNotice(); // v17: p. ej. "Borramos tu cuenta…" (después de borrar, se vuelve acá)
   const root = h('div.onb');
   document.body.append(root);
 
   const pickStep = () => {
     root.replaceChildren(h('div.onb-inner',
+      notice ? h('p.note', { role: 'status' }, notice) : null,
       h('p.eyebrow', 'Paso 1 de 2'),
       h('h1.display.onb-title', 'Elegí tu bando'),
       h('p.muted', 'Es para siempre: define tus misiones, tu guarida y a quién cazás.'),
