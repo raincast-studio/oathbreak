@@ -189,7 +189,7 @@ function nick(r, faction) {
   if (x < 0.64) { const n = name.toLowerCase(); return `${n}${r() < 0.5 ? n.at(-1) : ''}${r() < 0.6 ? `_${r.pick(TAGS).toLowerCase()}` : ''}`; }
   if (x < 0.7) return r() < 0.5 ? `xX${name}Xx` : mixCase(name + (r() < 0.5 ? word : ''), r);
   if (x < 0.78) return `${r.pick(EN)}${name}`;
-  if (x < 0.84) return `${word}${r.pick(PLACES)}`;
+  if (x < 0.82) return `${word}${r.pick(PLACES)}`;
   if (x < 0.9 && BR.has(name)) return `${name}${r.pick(['zika', 'BR', '_br', 'gamer', 'zin', '_ofc'])}`;
   if (x < 0.95) { const t = r.pick(TAGS); return `${name}${t === t.toLowerCase() ? '_' : sep}${t}`; }
   return `${word}${name}${r() < 0.4 ? num(r) : ''}`;

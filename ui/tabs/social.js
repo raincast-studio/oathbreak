@@ -81,7 +81,7 @@ function visitView(ctx) {
   const row = (x) => h(`li.person${x.visitedToday ? '.visited' : ''}`,
     avatar(x.faction, x.name, '', x.level),
     h('div.t-info',
-      h('strong', x.name),
+      h('strong', x.name, x.eco ? h('span.tag', 'Eco') : null),
       h('span.t-meta', h('span.muted', `Nv ${x.level} · Prestigio ${num(x.prestige)}`)),
       h('span.tags', x.friend ? h('span.tag', 'Amigo') : x.requested ? h('span.tag', 'Solicitud enviada') : null, x.returning ? h('span.tag', 'Te visitó') : null)),
     h('button.btn.small' + (x.visitedToday ? '.ghost' : '.gold'), { type: 'button', onclick: () => doVisit(ctx, x.id) }, x.visitedToday ? 'Ver' : 'Visitar'));
@@ -132,7 +132,7 @@ function friendsView(ctx) {
     } }, 'Aceptar todas')) : null,
     h('ul.people', fr.requests.map((r) => h('li.person',
       avatar(r.faction, r.name, '', r.level),
-      h('div.t-info', h('strong', r.name), h('span.muted', `${FAC[r.faction]} · Nv ${r.level} · ${ago(ctx.S.now - r.ts)}`)),
+      h('div.t-info', h('strong', r.name, r.eco ? h('span.tag', 'Eco') : null), h('span.muted', `${FAC[r.faction]} · Nv ${r.level} · ${ago(ctx.S.now - r.ts)}`)),
       h('div.row.tight',
         h('button.btn.ghost.small', { type: 'button', 'aria-label': `Rechazar a ${r.name}`, onclick: (e) => ctx.act(e.currentTarget, (g) => g.rejectFriend(r.id), () => 'Solicitud rechazada') }, 'No'),
         h('button.btn.gold.small', { type: 'button', 'aria-label': `Aceptar a ${r.name}`, onclick: (e) => ctx.act(e.currentTarget, (g) => g.acceptFriend(r.id), () => `${r.name} ahora es tu amigo`) }, 'Aceptar')))))) : null;
@@ -154,12 +154,13 @@ function friendsView(ctx) {
       h('p.muted.hint', `Regalos de hoy: ${fr.sentToday}/${fr.cap}. Regalar es gratis: es un objeto chico que crea el sistema, y vos ganás renombre.`),
       fr.list.length ? h('ul.people', fr.list.map((f) => h('li.person',
         avatar(f.faction, f.name, '', f.level),
-        h('div.t-info', h('strong', f.name), h('span.muted', `${FAC[f.faction]} · Nv ${f.level}`)),
+        h('div.t-info', h('strong', f.name, f.eco ? h('span.tag', 'Eco') : null), h('span.muted', `${FAC[f.faction]} · Nv ${f.level}${f.inactive ? ' · inactivo' : ''}`)),
         h('div.row.tight',
           h('button.btn.ghost.small', { type: 'button', 'aria-label': `Visitar a ${f.name}`, onclick: () => doVisit(ctx, f.id) }, 'Visitar'),
           h('button.btn.small' + (f.giftedToday ? '.ghost' : '.violet'), { type: 'button', disabled: f.giftedToday || fr.sentToday >= fr.cap,
             onclick: (e) => ctx.act(e.currentTarget, (g) => g.sendGift(f.id), (r) => `Le regalaste: ${r.item}`) }, f.giftedToday ? '✓' : 'Regalar')))))
         : h('p.empty', 'Todavía no tenés amigos. Visitá guaridas y mandale una solicitud a quien te guste.'),
+      fr.suggest?.length ? h('p.muted.hint', `Para sumar: ${fr.suggest.map((x) => `${x.name} (Nv ${x.level})`).join(', ')}. Visitá su guarida y mandale una solicitud.`) : null, // v17
       sentCard));
 }
 

@@ -395,7 +395,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         ok: true, seed: world.seed,
         bots: Object.values(world.entities).filter((e) => e.isBot).map((b) => ({
           id: b.id, name: b.name, faction: b.faction, level: b.level, arch: b.arch, power: S.power(b), powerVsYou: +(S.power(b) / S.power(p)).toFixed(2),
-          gold: b.gold, prestige: Lr.prestige(b).total,
+          gold: b.gold, prestige: Lr.prestige(b).total, anchor: b.anchor, retire: BL.retireStage(b, now), seen: BL.lastSeen(world, b, now), // v17
         })).sort((a, b) => a.level - b.level),
       })),
       world: () => world,
