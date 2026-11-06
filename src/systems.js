@@ -72,7 +72,7 @@ export const inRange = (a, b) => Math.abs(a.level - b.level) <= levelRange(Math.
 // Ataques que puede recibir por día: con el escudo de novato retirándose (Nv 5–7) el tope es más bajo.
 export function receiveCap(d, fromBot) {
   const full = fromBot ? CFG.pvp.maxBotAttacksPerDay : CFG.pvp.maxReceivedPerDay;
-  if (d.isBot) return full;
+  if (d.isBot) return fromBot ? full : (CFG.bots.receiveFromPlayers ?? full); // v17: cupo propio de los bots (null = el de un jugador)
   const fade = CFG.pvp.shieldFade ?? [];
   const i = d.level - CFG.pvp.newbieLevel;
   return i >= 0 && i < fade.length ? Math.min(full, fade[i]) : full;
@@ -613,12 +613,12 @@ export function rebalanceBots(world, now) {
     load.set(b.anchor, load.get(b.anchor) - 1); b.anchor = h.id; load.set(h.id, load.get(h.id) + 1);
   }
   // 2) Conteos en el rango de cada jugador activo: humanos y bots activos, rivales (opp) y de su facción (same).
-  const cap = CFG.pvp.maxReceivedPerDay;
+  const cap = CFG.pvp.maxReceivedPerDay, capBot = CFG.bots.receiveFromPlayers ?? cap;
   const C = humans.map((h) => {
     const c = { h, Hopp: 0, Hsame: 0, Bopp: 0, Bsame: 0 };
     for (const o of humans) if (o !== h && inRange(h, o)) c[o.faction === h.faction ? 'Hsame' : 'Hopp']++;
     for (const b of bots) if (!b.ret && inRange(h, b)) c[b.faction === h.faction ? 'Bsame' : 'Bopp']++;
-    c.needOpp = Math.max(R.minTargets - c.Hopp, Math.ceil((R.huntsPerDay * (c.Hsame + 1) - cap * c.Hopp) / cap), 0);
+    c.needOpp = Math.max(R.minTargets - c.Hopp, Math.ceil((R.huntsPerDay * (c.Hsame + 1) - cap * c.Hopp) / capBot), 0);
     c.needSame = Math.max(R.minPeers - c.Hsame, 0);
     return c;
   });

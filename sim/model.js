@@ -81,7 +81,7 @@ export const PROFILES = {
 };
 
 // Simula un jugador usando SOLO la fachada pública. Devuelve un registro por día.
-// opts.setup(g, clock): antes de empezar (p. ej. sumar jugadores reales) · opts.session(g, now, i): al empezar cada
+// opts.setup(g, clock): antes de empezar (p. ej. sumar jugadores reales) · opts.session(g, now, i) y opts.after(g, now, i): al empezar y al terminar cada
 // sesión del jugador simulado · opts.onDay(g, day): al cerrar cada día.
 export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
   const clock = createClock(() => Date.UTC(2026, 9, 19, 3)); // lunes 00:00 ART
@@ -89,7 +89,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
   g.newCharacter('Sim', 'hero');
   opts.setup?.(g, clock);
   const acc = {
-    missionGold: 0, missionXp: 0, lootIn: 0, winGold: 0, lootOut: 0, bounty: 0, preyGold: 0, pvpXp: 0, attacks: 0, wins: 0, defended: 0, defWins: 0,
+    missionGold: 0, missionXp: 0, lootIn: 0, lootHuman: 0, winGold: 0, lootOut: 0, bounty: 0, preyGold: 0, pvpXp: 0, attacks: 0, wins: 0, defended: 0, defWins: 0,
     workshop: 0, visitGold: 0, dailyGold: 0, dailyXp: 0, visitXp: 0, seasonGold: 0, buildSpend: 0, decorSpend: 0, statSpend: 0, gearSpend: 0, visits: 0,
     gifts: 0, giftsIn: 0, seasonTiers: 0, endEnergy: 0, endTargets: 0, sessions: 0, daysPlayed: 0, preys: 0,
   };
@@ -130,7 +130,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
         if (!r.ok) { if (r.error === 'sin_energia') acc.endEnergy++; else acc.endTargets++; break; }
         const rep = r.report, won = rep.winner === 'attacker';
         acc.attacks++; today.attacks++;
-        if (won) { acc.wins++; today.wins++; acc.lootIn += rep.loot.gold; acc.winGold += rep.loot.win ?? 0; }
+        if (won) { acc.wins++; today.wins++; acc.lootIn += rep.loot.gold; acc.winGold += rep.loot.win ?? 0; if (!g.debug.world().entities[rep.defender.id]?.isBot) acc.lootHuman += rep.loot.gold; }
         if (rep.prey) { acc.preyGold += rep.prey.gold; acc.preys++; acc.pvpXp += rep.prey.xp; }
         acc.pvpXp += rep.xp.attacker;
       }
@@ -168,6 +168,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
       const gap = ((ses[(i + 1) % ses.length] - ses[i] + 24) % 24) || 24;
       const c = g.contracts().list.filter((x) => x.min <= gap * 60).sort((a, b) => b.min - a.min)[0];
       if (c && !g.state().player.mission) g.startMission(c.id);
+      opts.after?.(g, clock.now(), i);
     }
     if (!plays) g.debug.advance(Date.UTC(2026, 9, 20 + d, 3) - clock.now() - 1);
     daily.push(today);
@@ -193,7 +194,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
 export function summarize(log) {
   const L = log[log.length - 1];
   const xpTotal = L.missionXp + L.pvpXp + L.dailyXp + L.visitXp;
-  const botGold = L.lootIn + L.bounty + L.preyGold;
+  const botGold = L.lootIn - (L.lootHuman ?? 0) + L.bounty + L.preyGold; // v17: el botín robado a jugadores reales es una transferencia, no cuenta
   const pvpGold = botGold + L.winGold;
   const goldIn = L.missionGold + pvpGold + L.workshop + L.visitGold + L.dailyGold + L.seasonGold;
   const spent = L.buildSpend + L.decorSpend + L.statSpend + L.gearSpend;

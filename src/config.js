@@ -172,6 +172,9 @@ export const CFG = {
     // de un solo jugador no se gana sola).
     label: 'none',
     eco: { prizeMinEntrants: 4, warMinReal: 2 },
+    // v17: ataques de jugadores que un bot puede recibir por día (null = pvp.maxReceivedPerDay, como hoy). Con muchos
+    // jugadores reales, el cupo de 5 de cada objetivo no alcanza para la energía de todos (ver docs/E6, Bots).
+    receiveFromPlayers: null,
     // v17: comportamiento humano. Cada bot tiene un perfil estable derivado de la semilla (no ocupa lugar en el guardado).
     human: {
       tz: [[-3, 0.55], [-4, 0.12], [-5, 0.2], [-6, 0.13]], // husos LATAM: AR/BR/UY/PY · BO/VE/CL · CO/PE/EC · MX/Centroamérica
