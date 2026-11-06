@@ -10,7 +10,7 @@
 <!-- v17-qa: los 39 módulos en paralelo. Sin esto el navegador los descubría de a niveles (main → game → systems → lair → …),
      un viaje de ida y vuelta por nivel, también en la 2ª visita (el service worker revalida el código con la red).
      test/v17-qa.test.js controla que la lista sea exactamente el grafo estático de ui/main.js. -->
-<link rel="modulepreload" href="ui/main.js">
+<link rel="modulepreload" href="ui/main.js"><link rel="modulepreload" href="ui/telemetry-sink.js"><link rel="modulepreload" href="ui/telemetry-panel.js">
 <link rel="modulepreload" href="src/game.js">
 <link rel="modulepreload" href="src/core.js">
 <link rel="modulepreload" href="ui/kit.js">
