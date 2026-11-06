@@ -715,6 +715,7 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 }
 @media (max-width: 380px) { /* v17-qa: filas de rivales a 360 px: el nombre y "Nv · #puesto · reput." tenían 96 px y se cortaban */
   .riv { padding: 10px; } .riv:has(> .more-btn) { gap: 6px; } .riv .avatar.lg { width: 48px; height: 48px; } .atk { min-width: 84px; }
+  .rank { gap: 8px; padding: 10px 8px; grid-template-columns: 22px auto minmax(0, 1fr) auto auto; } /* Escaparate: el nombre tenía 74 px */
 }
 @media (max-width: 380px) { /* 31/10: que el valor de las fichas (energía 12/12) no se corte a 360 px */
   .chip { padding: 5px 4px; gap: 3px; } .chip-ico { width: 18px; height: 18px; } .chip-ico .ico { width: 13px; height: 13px; }
