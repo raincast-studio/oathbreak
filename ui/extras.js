@@ -240,10 +240,15 @@ export async function install() {
 // Botón listo para usar (o null si ya está instalado).
 export const installButton = (cls = '.btn.gold.small') => (installState() === 'installed' ? null
   : h(`button${cls}`, { type: 'button', onclick: install }, 'Instalar'));
-export const notifyState = () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+// v17-qa: Notification.permission le pregunta al navegador en el momento (~1–4 ms con CPU x4) y se leía en cada refresh.
+// Se guarda y se vuelve a leer al volver a la app (el permiso se cambia desde los ajustes del sistema) o al pedirlo.
+let perm = null;
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { perm = null; });
+export const notifyState = () => (typeof Notification === 'undefined' ? 'unsupported' : (perm ??= Notification.permission));
 export async function askNotify() {
   if (notifyState() !== 'default') return;
   const r = await Notification.requestPermission().catch(() => 'denied');
+  perm = null;
   toast(r === 'granted' ? 'Listo: mientras el juego siga abierto o instalado en segundo plano, te avisamos cuando termine tu misión, se llene tu energía o te ataquen.' : 'Sin permiso para avisos. Lo podés activar desde el navegador.', r === 'granted' ? 'ok' : 'err');
 }
 async function notify(title, body, tag) {
