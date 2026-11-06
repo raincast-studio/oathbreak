@@ -209,6 +209,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         friendRequests: So.pendingIn(p, now).length,
         faction: S.factionScore(world, now),
         lastPrize: world.lastPrize ?? null,
+        // v17: resumen del pase para la tarjeta de Inicio y el badge del avatar.
+        season: (({ reached, tiers, claimable, next, boost, expected, endsAt, glory, gloryPerTier }) => ({ reached, tiers, claimable, next, boost, expected, endsAt, glory, gloryPerTier }))(Se.seasonStatus(p, now)),
         comeback: p.comeback ?? null, // v17 (B2): bono de regreso por mostrar (ackComeback lo da por visto)
         event: (({ id, name, desc } = {}) => (id ? { id, name, desc } : null))(S.weekendEvent(now) ?? undefined),
       }));

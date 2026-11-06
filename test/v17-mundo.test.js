@@ -7,6 +7,10 @@ import { createClock, memoryStorage } from '../src/core.js';
 import * as S from '../src/systems.js';
 import * as BL from '../src/bots.js';
 import { createGame } from '../src/game.js';
+import * as Se from '../src/season.js';
+import { createEntity } from '../src/character.js';
+import { ITEM } from '../src/catalog.js';
+import { runProfile, PROFILES } from '../sim/model.js';
 
 const MON = Date.UTC(2026, 9, 19, 15); // lunes 12:00 ART
 const newGame = (seed = 7, faction = 'hero', storage = memoryStorage()) => {
@@ -106,4 +110,52 @@ test('B1: con el juego abierto en dos pestañas, la desactualizada no pisa el pr
   assert.equal(JSON.parse(storage.getItem('oathbreak.save')).entities.p0.energy, e0 - 3 * CFG.energy.pvpCost);
   // aviso de otra pestaña por BroadcastChannel
   assert.ok(A.yieldTab().ok); assert.equal(A.claimMission().error, 'otra_pestana');
+});
+
+/* ---------- Pase: visible, variado y con catch-up ---------- */
+test('pase: catch-up ×2 solo por debajo del escalón esperado para el día de la temporada', () => {
+  const start = Se.seasonStart(MON), p = createEntity({ id: 'p0', name: 'Tester', faction: 'hero', now: MON });
+  assert.equal(Se.addGlory(p, 'win', start + HOUR), CFG.season.glory.win, 'día 0: sin catch-up');
+  const mid = start + 14 * DAY, exp = Se.expectedTier(mid);
+  assert.ok(exp >= 10 && exp <= 12, `esperado el día 14: ${exp}`);
+  assert.equal(Se.addGlory(p, 'win', mid), CFG.season.glory.win * CFG.season.catchUp.mult, 'atrasado: ×2');
+  p.season.glory = exp * CFG.season.gloryPerTier;
+  assert.equal(Se.addGlory(p, 'win', mid), CFG.season.glory.win, 'al día: sin catch-up');
+  const st = Se.seasonStatus(p, mid);
+  assert.equal(st.boost, 1); assert.equal(st.expected, exp);
+});
+
+test('pase: escalones variados (oro, XP, renombre, cofres y decoración del catálogo) que cambian con la temporada', () => {
+  const k = Se.seasonKey(MON);
+  const types = (key, f) => Array.from({ length: 30 }, (_, i) => Se.tierReward(i + 1, 10, f, key));
+  const a = types(k, 'hero');
+  assert.equal(a[0].type, 'gold');
+  assert.deepEqual([...new Set(a.map((r) => r.type))].sort(), ['chest', 'gold', 'item', 'renown', 'xp']);
+  assert.ok(a.some((r, i) => i >= 3 && r.type !== a[i - 3].type), 'no es un ciclo de 3');
+  const decor = a.filter((r) => r.decor).map((r) => r.id);
+  assert.ok(decor.length >= 6 && new Set(decor).size === decor.length && decor.every((id) => ITEM[id] && !ITEM[id].season));
+  assert.ok(decor.every((id) => !ITEM[id].faction || ITEM[id].faction === 'hero'));
+  assert.notDeepEqual(types(k + 1, 'hero').filter((r) => r.decor).map((r) => r.id), decor, 'otra temporada, otra decoración');
+  assert.equal(a.filter((r) => r.type === 'gold' || r.type === 'chest').length, 9, 'mismo oro que el ciclo de 3');
+  const p = createEntity({ id: 'p0', name: 'Tester', faction: 'hero', now: MON });
+  const t = a.findIndex((r) => r.decor) + 1;
+  Se.addGlory(p, 'daily', MON, (t * CFG.season.gloryPerTier) / CFG.season.glory.daily);
+  const r = Se.claimTier(p, t, MON);
+  assert.ok(r.ok && r.reward.decor && p.lair.inventory.some((i) => i.id === r.reward.id));
+});
+
+test('pase: la fachada da escalón, próximo premio y para cobrar (tarjeta de Inicio y badge del avatar)', () => {
+  const { g, w } = newGame(4);
+  Se.addGlory(w.entities.p0, 'daily', MON, (2 * CFG.season.gloryPerTier) / CFG.season.glory.daily);
+  const s = g.state().season;
+  assert.equal(s.reached, 2); assert.equal(s.claimable, 2); assert.equal(s.next.tier, 3); assert.equal(s.boost, 1);
+  g.claimSeasonTier(1); assert.equal(g.state().season.claimable, 1);
+});
+
+test('pase: quien entra a mitad de temporada termina más arriba con catch-up (activo, desde el día 14)', () => {
+  const cu = CFG.season.catchUp, end = {};
+  try {
+    for (const on of [false, true]) { CFG.season.catchUp = on ? cu : null; end[on] = runProfile(PROFILES.activo, 13, 1234, { startDay: 14 }).at(-1).seasonReached; }
+  } finally { CFG.season.catchUp = cu; }
+  assert.ok(end[false] <= 17 && end[true] >= end[false] + 6, `sin ${end[false]} · con ${end[true]}`);
 });

@@ -84,7 +84,7 @@ export function act(btn, run, okText, { refresh: doRefresh = true } = {}) {
 function load() {
   const st = game.state();
   if (!st.ok) return false;
-  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.event = st.event; S.comeback = st.comeback; S.now = st.now; S.at = performance.now();
+  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.event = st.event; S.comeback = st.comeback; S.season = st.season; S.now = st.now; S.at = performance.now();
   return true;
 }
 function refresh({ full = true } = {}) {
@@ -161,7 +161,9 @@ function drawTop(energyOnly = false) {
   $('#me-fac').textContent = p.faction === 'hero' ? 'Héroe' : 'Villano';
   $('#xp-txt').textContent = `${num(p.xp)}/${num(p.xpNeed)} XP`;
   $('#xp-bar').style.transform = `scaleX(${Math.min(1, p.xp / p.xpNeed)})`;
-  $('#me').setAttribute('aria-label', `Ver personaje: ${p.name}, nivel ${p.level}`);
+  const pass = S.season?.claimable ?? 0;
+  $('#me-dot').hidden = !pass;
+  $('#me').setAttribute('aria-label', `Ver personaje: ${p.name}, nivel ${p.level}${pass ? `, ${pass} ${pass === 1 ? 'escalón' : 'escalones'} del pase para cobrar` : ''}`);
   // v17: oro que sube → monedas desde el botón (si lo hubo), count-up al llegar y lluvia de monedas sincronizada.
   // Durante "Cazando…"/informe no suena acá: el informe hace su propio conteo.
   const gEl = $('#gold-val'), up = p.gold > Number(gEl.dataset.v ?? p.gold) && !document.querySelector('.hunt-layer');
@@ -338,7 +340,8 @@ function mount() {
       h('div.me-row',
         h('button.me-btn#me', { type: 'button', onclick: () => go('personaje') },
           h('span.me-av#me-av'),
-          h('span.me-lvl.display#lvl-num', '1')),
+          h('span.me-lvl.display#lvl-num', '1'),
+          h('span.dot.me-dot#me-dot', { hidden: true, 'aria-hidden': 'true' })), // v17: escalones del pase para cobrar
         h('div.me-info',
           h('span#who.display.me-name', { onclick: nameTap }, ''),
           h('span.me-sub', h('i.fac-dot', { 'aria-hidden': 'true' }), h('span#me-fac', ''), ' · ', h('span#xp-txt.tnum', '')),

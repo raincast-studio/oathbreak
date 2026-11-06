@@ -5,6 +5,7 @@ import { firstSteps } from '../onboarding.js';
 import { startFight } from '../fight.js';
 import { claimMission, rewardLine } from './misiones.js';
 import { nextAction, shieldChip } from '../extras.js';
+import { rewardText } from './personaje.js';
 export const title = 'Inicio';
 
 export function render(ctx) {
@@ -16,6 +17,7 @@ export function render(ctx) {
     firstSteps(ctx),
     stage(ctx),
     cards(ctx),
+    passCard(ctx),
     lastAttack(ctx),
     dailyCard(ctx));
 }
@@ -123,3 +125,23 @@ function dailyCard({ game, act }) {
     h('p.muted.hint', 'Se renuevan todos los días a las 00:00.'));
 }
 
+/* ---------- v17: pase de temporada (escalón, próximo premio, catch-up y CTA) ---------- */
+function passCard({ S, go }) {
+  const s = S.season;
+  if (!s || (S.player.level < 3 && !s.claimable)) return null; // la primera sesión no se distrae
+  const into = s.reached >= s.tiers ? s.gloryPerTier : s.glory - s.reached * s.gloryPerTier;
+  const rw = s.next && rewardText(s.next.reward);
+  const days = Math.max(0, Math.ceil((s.endsAt - S.now) / 86_400_000));
+  const open = () => go('personaje', { intent: 'temporada' });
+  return h('section.card.pass-card',
+    h('div.sec-head', h('h2.display', 'Pase de temporada'), h('span.muted.tnum', `${s.reached}/${s.tiers} · ${days} ${days === 1 ? 'día' : 'días'}`)),
+    h('div.g-bar', { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': s.gloryPerTier, 'aria-valuenow': into, 'aria-label': 'Gloria para el próximo escalón' },
+      h('span', { style: { transform: `scaleX(${Math.min(1, into / s.gloryPerTier)})` } })),
+    h('div.pass-row',
+      h('div.g-info',
+        s.claimable ? h('strong', `Tenés ${s.claimable} ${s.claimable === 1 ? 'escalón' : 'escalones'} para cobrar`)
+          : rw ? h('strong', 'Próximo: escalón ', h('span.tnum', s.next.tier), ' · ', icon(rw.ico, 16), ' ', rw.txt) : h('strong', 'Pase completo'),
+        s.boost > 1 ? h('span.g-meta', `Gloria ×${s.boost} hasta el escalón ${s.expected}: te ponés al día`)
+          : h('span.g-meta.tnum', `${num(Math.max(0, s.gloryPerTier - into))} de Gloria para el próximo`)),
+      h(`button.btn.small${s.claimable ? '.gold' : '.ghost'}`, { type: 'button', onclick: open }, s.claimable ? 'Cobrar' : 'Ver pase')));
+}

@@ -152,6 +152,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .tab.center[aria-current="page"] .nav-ico { background: #F04A5E; }
 .dot { position: absolute; top: -2px; right: -4px; width: 11px; height: 11px; border-radius: 50%; background: var(--crimson); border: 2px solid #130E25; }
 .tab.center .dot { background: var(--gold); top: 0; right: 0; }
+.me-dot { top: -1px; right: -1px; background: var(--gold); } /* v17: escalones del pase para cobrar */
 
 /* ---------- Escritorio (mockup WebBase) ---------- */
 @media (min-width: 1024px) {
@@ -516,6 +517,10 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .amount:focus, .name-input:focus { outline: none; border-color: var(--gold); }
 .season-prog { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 14px; }
 .season-prog > strong { font-size: 30px; color: var(--violet); font-weight: 400; }
+.pass-card { display: grid; gap: 10px; }
+.pass-row { display: flex; align-items: center; gap: 12px; }
+.pass-row .g-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.pass-row strong { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .tier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
 .tier { position: relative; display: grid; justify-items: center; gap: 4px; padding: 10px 6px; min-height: 92px; border-radius: var(--r); border: 2px solid var(--line);
   background: var(--surface-2); color: var(--muted); }

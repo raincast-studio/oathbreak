@@ -84,7 +84,8 @@ export const PROFILES = {
 // opts.setup(g, clock): antes de empezar (p. ej. sumar jugadores reales) · opts.session(g, now, i) y opts.after(g, now, i): al empezar y al terminar cada
 // sesión del jugador simulado · opts.onDay(g, day): al cerrar cada día.
 export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
-  const clock = createClock(() => Date.UTC(2026, 9, 19, 3)); // lunes 00:00 ART
+  const D0 = opts.startDay ?? 0; // v17: días después del lunes 19/10 (p. ej. 14 = entrar a mitad de temporada)
+  const clock = createClock(() => Date.UTC(2026, 9, 19 + D0, 3)); // lunes 00:00 ART
   const g = createGame({ storage: memoryStorage(), clock, seed, autosave: false });
   g.newCharacter('Sim', 'hero');
   opts.setup?.(g, clock);
@@ -105,7 +106,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
     const plays = !(prof.skipDays ?? []).includes(weekday);
     if (plays) acc.daysPlayed++;
     for (let i = 0; plays && i < ses.length; i++) {
-      g.debug.advance(Date.UTC(2026, 9, 19 + d, ses[i] + 3) - clock.now());
+      g.debug.advance(Date.UTC(2026, 9, 19 + D0 + d, ses[i] + 3) - clock.now());
       acc.sessions++;
       opts.session?.(g, clock.now(), i);
       if (g.state().player.mission?.done) { const c = g.claimMission(); acc.missionGold += c.gold; acc.missionXp += c.xp; }
@@ -170,7 +171,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
       if (c && !g.state().player.mission) g.startMission(c.id);
       opts.after?.(g, clock.now(), i);
     }
-    if (!plays) g.debug.advance(Date.UTC(2026, 9, 20 + d, 3) - clock.now() - 1);
+    if (!plays) g.debug.advance(Date.UTC(2026, 9, 20 + D0 + d, 3) - clock.now() - 1);
     daily.push(today);
     opts.onDay?.(g, d + 1);
     const s = g.state().player;
@@ -182,6 +183,7 @@ export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
       wr7: last7.reduce((a, x) => a + x.wins, 0) / Math.max(1, last7.reduce((a, x) => a + x.attacks, 0)),
       bld: lair.buildings.map((b) => b.level).join(''), streak: lair.visits.streak, renown: s.renown, prestige: lair.prestige.total,
       showcaseRank: sc.findIndex((x) => x.id === 'p0') + 1, gear: Object.values(s.gear).reduce((a, b) => a + b, 0),
+      seasonReached: g.season().reached,
       ...acc,
     });
   }

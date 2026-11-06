@@ -130,6 +130,13 @@ export const CFG = {
     renownPerTier: 15, goldMissionMin: 60,
     glory: { win: 3, visit: 2, gift: 3, daily: 5, bonus: 10, mission: 2, prey: 10, faction: 50 },
     cosmetics: { 10: 'temp_aura', 20: 'temp_estatua', 30: 'temp_portal' },
+    // v17 fix-mundo: escalones variados (antes oro/XP/renombre en ciclo de 3). G oro · X XP · R renombre · C cofre (oro +
+    // renombre) · D decoración del catálogo (distinta cada temporada y facción). Mismo oro y renombre que el ciclo de 3.
+    plan: 'GXDRCXDGX-DCXRGDXCR-DGXDCRGDX-',
+    decorRarity: [[12, 'raro'], [24, 'epico'], [31, 'epico']], // hasta el escalón N (excl.), rareza de la decoración
+    // Catch-up: Gloria ×mult mientras estés por debajo del escalón esperado para el día (pace × ritmo lineal de 30 en 28
+    // días). El activo va por encima (termina cerca del día 27) y no lo recibe; el que entra a mitad de temporada, sí.
+    catchUp: { mult: 2, pace: 0.75 },
   },
 
   // 31/10: evento de fin de semana (sábado y domingo, ART): más XP por ganar en la Arena y Gloria doble por victoria.

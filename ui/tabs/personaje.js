@@ -167,7 +167,7 @@ function bankView(ctx) {
 
 /* ---------- Temporada ---------- */
 const GLORY = { win: 'Ganar una caza', visit: 'Visitar una guarida', gift: 'Mandar un regalo', daily: 'Cobrar un objetivo del día', bonus: 'Bono de los 3 objetivos', mission: 'Cobrar una misión', prey: 'Derrotar a tu presa', faction: 'Ganar la guerra de facciones' };
-function rewardText(r) {
+export function rewardText(r) { // v17: también la usa la tarjeta del pase de Inicio
   if (r.type === 'gold') return { ico: 'coin', txt: num(r.amount), cls: 'gold' };
   if (r.type === 'xp') return { ico: 'star', txt: `${num(r.amount)} XP`, cls: 'xp' };
   if (r.type === 'renown') return { ico: 'crown', txt: `${num(r.amount)}`, cls: 'renown' };
@@ -195,6 +195,7 @@ function seasonView(ctx) {
         h('div.g-info', h('div.m-track', h('span', { style: { transform: `scaleX(${s.reached >= s.tiers ? 1 : into / s.gloryPerTier})` } })),
           h('span.muted.tnum', s.reached >= s.tiers ? `Pase completo · cofres extra ${s.extraReached}/${s.extraTiers} (uno cada ${num(s.gloryPerExtra)} de Gloria)` : `${num(into)} / ${num(s.gloryPerTier)} de Gloria para el escalón ${s.reached + 1}`))),
       claimable ? h('p.note', `Tenés ${claimable} ${claimable > 1 ? 'escalones' : 'escalón'} para cobrar.`) : null,
+      s.boost > 1 ? h('p.note', `Gloria ×${s.boost} hasta alcanzar el escalón ${s.expected}: te ponés al día con la temporada.`) : null,
       h('div.tier-grid', tiles)),
     h('section.card',
       h('h2.display', 'Cómo ganar Gloria'),
