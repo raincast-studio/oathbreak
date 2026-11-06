@@ -42,7 +42,9 @@ export function render(ctx) {
       : h('p.empty', 'Nadie te atacó en las últimas 24 h. Cuando alguien lo haga, vas a poder devolverle el golpe una vez, aunque esté fuera de tu rango.');
   } else if (UI.sub === 'ranking') {
     const rk = game.ranking();
-    body = h('ul.riv-list', (rk.ok ? rk.list : []).map((t) => row(t, `#${t.pos} ${foeF === 'hero' ? 'Héroes' : 'Villanos'} · ${num(t.rep)} reput.`)));
+    // v17-qa: el bando va en el título de la lista; en la fila, "#1 Villanos · 1 reput." se cortaba justo en la reputación.
+    body = h('div.stack', h('p.muted.list-cap', `Ranking de ${foeF === 'hero' ? 'Héroes' : 'Villanos'} por reputación`),
+      h('ul.riv-list', (rk.ok ? rk.list : []).map((t) => row(t, `#${t.pos} · ${num(t.rep)} reput.`))));
   } else {
     const tg = game.targets();
     const list = tg.ok ? tg.list : [];

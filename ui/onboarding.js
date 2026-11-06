@@ -39,7 +39,7 @@ export function showOnboarding(game, onDone) {
 
   const nameStep = () => {
     view('name');
-    const input = h('input#hero-name.name-input', { type: 'text', maxLength: 16, autocomplete: 'off', autocapitalize: 'words', spellcheck: false, 'aria-describedby': 'name-help', placeholder: 'Tu nombre' });
+    const input = h('input#hero-name.name-input', { type: 'text', maxLength: 16, autocomplete: 'off', autocapitalize: 'words', spellcheck: false, 'aria-label': 'Tu nombre', 'aria-describedby': 'name-help', placeholder: 'Tu nombre' });
     const help = h('p#name-help.muted', 'Entre 3 y 16 letras. Así te ven en la caza y en el escaparate.');
     const roll = () => {
       input.value = randomName(faction); rnd = true;

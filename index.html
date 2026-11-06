@@ -7,6 +7,53 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="ui/img/icon-192.png">
 <link rel="apple-touch-icon" href="ui/img/icon-192.png">
+<!-- v17-qa: los 39 módulos en paralelo. Sin esto el navegador los descubría de a niveles (main → game → systems → lair → …),
+     un viaje de ida y vuelta por nivel, también en la 2ª visita (el service worker revalida el código con la red).
+     test/v17-qa.test.js controla que la lista sea exactamente el grafo estático de ui/main.js. -->
+<link rel="modulepreload" href="ui/main.js">
+<link rel="modulepreload" href="src/game.js">
+<link rel="modulepreload" href="src/core.js">
+<link rel="modulepreload" href="ui/kit.js">
+<link rel="modulepreload" href="ui/audio.js">
+<link rel="modulepreload" href="ui/errors.js">
+<link rel="modulepreload" href="ui/onboarding.js">
+<link rel="modulepreload" href="ui/report.js">
+<link rel="modulepreload" href="ui/tabs/base.js">
+<link rel="modulepreload" href="ui/tabs/misiones.js">
+<link rel="modulepreload" href="ui/tabs/arena.js">
+<link rel="modulepreload" href="ui/tabs/guarida.js">
+<link rel="modulepreload" href="ui/tabs/social.js">
+<link rel="modulepreload" href="ui/tabs/personaje.js">
+<link rel="modulepreload" href="ui/cloud.js">
+<link rel="modulepreload" href="ui/account.js">
+<link rel="modulepreload" href="ui/extras.js">
+<link rel="modulepreload" href="src/config.js">
+<link rel="modulepreload" href="src/character.js">
+<link rel="modulepreload" href="src/systems.js">
+<link rel="modulepreload" href="src/lair.js">
+<link rel="modulepreload" href="src/objectives.js">
+<link rel="modulepreload" href="src/effects.js">
+<link rel="modulepreload" href="src/catalog.js">
+<link rel="modulepreload" href="src/migrate.js">
+<link rel="modulepreload" href="src/economy.js">
+<link rel="modulepreload" href="src/telemetry.js">
+<link rel="modulepreload" href="src/social.js">
+<link rel="modulepreload" href="src/season.js">
+<link rel="modulepreload" href="src/moderation.js">
+<link rel="modulepreload" href="src/bots.js">
+<link rel="modulepreload" href="ui/legal.js">
+<link rel="modulepreload" href="src/reports.js">
+<link rel="modulepreload" href="ui/safety.js">
+<link rel="modulepreload" href="ui/fight.js">
+<link rel="modulepreload" href="ui/room.js">
+<link rel="modulepreload" href="src/combat.js">
+<link rel="modulepreload" href="src/events.js">
+<link rel="modulepreload" href="ui/art.js">
+<!-- v17-qa: la nube (ui/cloud.js) se conecta antes de crear la partida: conexión y librería en paralelo con el juego
+     (antes empezaban recién después de bajar y ejecutar todo). Mismo test: URL y versión iguales a las de ui/cloud.js. -->
+<link rel="preconnect" href="https://ymxjkmmtogjfnoclwdlm.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +67,7 @@
   --bg: #0E0A1C; --surface: #1B1530; --surface-2: #241C3F; --line: #3A2E5C;
   --ink: #F4EEFF; --muted: #B4A7D6; --ink-dark: #2A1A00;
   --gold: #FFC93C; --gold-sh: #A8721A;
-  --crimson: #E2364B; --crimson-sh: #8E1A2A;
+  --crimson: #DC3246; --crimson-sh: #8E1A2A; /* v17-qa: era #E2364B; el blanco encima (ATACAR, botones rojos) daba 4,3:1 y ahora 4,6:1 */
   --violet: #8E44F0; --violet-sh: #5B22A8;
   --fac: var(--gold); --fac-sh: var(--gold-sh);
   --ok: #3DDC97; --warn: #FF9A3C; /* estados (bandas de poder), aparte del acento */
@@ -185,6 +232,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 
 /* ---------- Avisos ---------- */
 .toasts { position: fixed; z-index: 60; left: 0; right: 0; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 12px); /* 31/10: abajo, sin tapar títulos */ display: grid; justify-items: center; gap: 8px;
+  grid-template-columns: minmax(0, 1fr); /* v17-qa: sin esto la columna crecía con el texto y los avisos largos salían de la pantalla */
   padding-left: var(--gutter-l); padding-right: var(--gutter-r); pointer-events: none; }
 .toast { max-width: min(420px, 100%); width: max-content; min-width: 0; text-align: center; padding: 12px 18px; border-radius: var(--r); font-weight: 900; font-size: 15px;
   box-shadow: inset 0 -3px 0 rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.45); animation: toast-in var(--t-slow) var(--ease-pop); }
@@ -199,7 +247,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 /* ---------- Caza ---------- */
 .tnum { font-variant-numeric: tabular-nums; }
 .btn.big { min-height: 60px; font-size: 18px; width: 100%; }
-.btn.small { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.btn.small { min-height: 44px; min-width: 44px; padding: 0 16px; font-size: 15px; } /* v17-qa: "Ir" medía 43 px de ancho */
 .btn > span { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .cost { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 10px; margin-left: 6px; border-radius: 999px; background: rgba(0,0,0,.22); font-size: 14px; }
 .hunt-cta { display: grid; gap: 16px; padding: 20px; border-radius: var(--r-lg); border: 2px solid var(--line);
@@ -400,6 +448,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .inv-txt { min-width: 0; display: grid; }
 .inv-txt strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-txt .muted { font-size: 13px; }
+.shop-item .inv-txt strong { white-space: normal; } /* v17-qa: nombres largos + "Hoy" se cortaban ("Radio de emergencias…") */
 .swatch { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--c); border: 3px solid var(--rb);
   color: #fff; font-family: var(--f-display); font-size: 16px; box-shadow: inset 0 -4px 0 rgba(0,0,0,.28); }
 .more { margin-right: 6px; font-size: 20px; }
@@ -430,6 +479,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .rank.me { box-shadow: inset 0 0 0 2px var(--fac); }
 .score { font-weight: 900; font-size: 17px; }
 .rank .t-info .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; font-size: 13px; }
+.rank .t-info .muted.tnum { white-space: normal; } /* v17-qa: Escaparate: "Prestigio 18 · 0 aplausos" se cortaba en "Prestigio 18 · 0…" */
 .rank .spacer { width: 44px; }
 .war-bar { display: flex; height: 40px; border-radius: 999px; overflow: hidden; border: 2px solid var(--line); }
 .war-bar span { display: flex; align-items: center; padding: 0 12px; min-width: 0; transition: flex-grow var(--t-slow) var(--ease-out); }
@@ -509,7 +559,12 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .safety-links .link-btn, .rr-report { font-size: 14px; font-weight: 800; }
 .rr-report { justify-self: center; margin-top: -8px; }
 .riv:has(> .more-btn) { grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; }
-.more-btn { width: 32px; min-height: 48px; padding: 0; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 20px; font-weight: 900; line-height: 1; display: grid; place-items: center; }
+.more-btn { width: 32px; min-height: 48px; padding: 0; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 20px; font-weight: 900; line-height: 1; display: grid; place-items: center; position: relative; }
+/* v17-qa: área táctil de 44 px sin ensanchar la fila (el gap es de 8 px); en la Presa del día la nota ("doble XP y bono de oro") en dos líneas en vez de "doble…". */
+.more-btn::before { content: ''; position: absolute; inset: -2px -6px; }
+.riv .riv-info .muted { white-space: normal; } /* también Venganza: "Nv 6 · te atacó hace 19 h" se cortaba justo en la hora */
+@media (max-width: 480px) { .people .person > .row.tight { grid-column: 1 / -1; justify-content: flex-end; } } /* solicitudes y amigos: los botones abajo (el nombre tenía 69 px) */
+@media (max-width: 480px) { .prey { padding: 14px 14px 16px; } }
 .rr-list { display: grid; gap: 8px; }
 .rr-opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; }
 .rr-opt:has(input:checked) { border-color: var(--crimson); background: color-mix(in srgb, var(--crimson) 14%, var(--surface)); }
@@ -603,7 +658,7 @@ button.qcard:active { transform: scale(.98); }
 .atk small { font-family: var(--f-ui); font-size: 11px; font-weight: 900; opacity: .9; }
 .atk:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--crimson-sh); }
 .atk:disabled { background: #2E2450; box-shadow: none; color: #8F86B0; cursor: not-allowed; }
-.prey .riv { border-color: var(--violet); background: var(--surface-2); }
+.prey .riv { border: 0; background: none; padding: 0; } /* v17-qa: la sección ya es la tarjeta; sin el doble marco el nombre y la nota tienen lugar */
 .busy { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--gold) 12%, var(--surface)); border: 2px solid var(--gold-sh); }
 .busy-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--gold); color: var(--ink-dark); }
 .busy .muted { font-size: 13px; }
@@ -655,7 +710,10 @@ button.qcard:active { transform: scale(.98); }
 @media (max-width: 380px) { .seg:has(> :nth-child(4)) { gap: 0; } .seg:has(> :nth-child(4)) .seg-btn { padding: 0 6px; font-size: 13px; } } /* v15: "Facciones" entra a 360 px */
 .mark-all { justify-self: end; }
 /* 31/10: plan de la revisión experta */
-html.locked .toasts { display: none; } /* no tapan "Cazando…" ni el informe */
+body:has(> .hunt-layer) .toasts { display: none; } /* no tapan "Cazando…" ni el informe */
+/* v17-qa: con una hoja abierta los avisos van arriba, sobre el fondo oscuro (antes se ocultaban: un error dentro de una hoja,
+   p. ej. "Te falta nivel" al comprar una sala, no se veía y el botón parecía no responder). */
+html.locked .toasts { top: calc(env(safe-area-inset-top, 0px) + 12px); bottom: auto; }
 @media (min-width: 1024px) { .toasts { bottom: 24px; } }
 .next, .invite { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r);
   background: var(--surface); border: 2px solid var(--line); }
@@ -700,6 +758,13 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 @media (prefers-reduced-motion: reduce) { .evo-old { display: none; } .evo-new, .evo-rays { animation: none; } }
 .event-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--violet) 22%, var(--surface)); border: 2px solid var(--violet); font-size: 14px; }
 .event-banner .ico { color: var(--gold); }
+@media (max-width: 420px) { /* v17-qa: "RENOM." se cortaba como "REN…" a 390 px */
+  .chip { padding: 5px 5px; gap: 4px; } .chip-ico { width: 20px; height: 20px; } .chip-txt small { font-size: 10px; letter-spacing: .02em; } /* y "+1 19:59" */
+}
+@media (max-width: 380px) { /* v17-qa: filas de rivales a 360 px: el nombre y "Nv · #puesto · reput." tenían 96 px y se cortaban */
+  .riv { padding: 10px; } .riv:has(> .more-btn) { gap: 6px; } .riv .avatar.lg { width: 48px; height: 48px; } .atk { min-width: 84px; }
+  .rank { gap: 8px; padding: 10px 8px; grid-template-columns: 22px auto minmax(0, 1fr) auto auto; } /* Escaparate: el nombre tenía 74 px */
+}
 @media (max-width: 380px) { /* 31/10: que el valor de las fichas (energía 12/12) no se corte a 360 px */
   .chip { padding: 5px 4px; gap: 3px; } .chip-ico { width: 18px; height: 18px; } .chip-ico .ico { width: 13px; height: 13px; }
   .chip-txt strong { font-size: 13px; } .chip-txt small { font-size: 10px; letter-spacing: .02em; }
@@ -856,11 +921,19 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
   .me-btn.lvl-up + .me-info .me-xp, .arena.shake, .fighter .sprite, .chip.gold .chip-ico { animation: none !important; }
 }
 /* /v17-audio */
+/* v17-qa: pantalla de carga (index.html → boot() en ui/main.js la quita) */
+.boot { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: radial-gradient(100% 60% at 50% 0%, color-mix(in srgb, var(--violet) 30%, var(--bg)), var(--bg) 70%); }
+.boot-logo { font-size: 44px; color: var(--gold); text-shadow: 0 4px 0 var(--gold-sh); }
+.boot-txt { color: var(--muted); font-size: 15px; animation: boot-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes boot-pulse { from { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .boot-txt { animation: none; } }
 </style>
 </head>
 <body>
 <!-- v15.1: el manifiesto, el título y los <meta> estaban dentro de <body> (Chrome no ve el manifiesto ahí: la app no se podía instalar). -->
 <noscript><p style="padding:24px">OATHBREAK necesita JavaScript activado.</p></noscript>
+<!-- v17-qa: pantalla de carga sin JavaScript: con señal mala se veía la pantalla vacía hasta 3–8 s. boot() la quita. -->
+<div id="boot" class="boot" role="status"><span class="display boot-logo">OATHBREAK</span><span class="boot-txt">Cargando…</span></div>
 <script type="module" src="ui/main.js"></script>
 
 </body></html>

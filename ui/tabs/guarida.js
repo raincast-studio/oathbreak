@@ -158,11 +158,11 @@ function attachGhost(grid, mode) {
 }
 
 function buyRoomSheet(ctx, lr) {
-  const n = lr.nextRoom;
+  const n = lr.nextRoom, low = ctx.S.player.level < n.lvl; // v17-qa: sin nivel, el botón lo dice en vez de fallar al tocarlo
   openSheet({ title: `Sala ${lr.rooms.length + 1}`, body: h('div.stack',
     h('p', `Otra sala de ${W}×${H} para decorar. Suma espacio para sets completos y más prestigio.`),
     h('dl.facts', h('dt', 'Nivel requerido'), h('dd', n.lvl), h('dt', 'Precio'), h('dd', `${num(n.price)} oro`)),
-    h('button.btn.gold.wide', { type: 'button', onclick: (e) => { const r = ctx.act(e.currentTarget, (g) => g.buyRoom(), () => '¡Sala nueva!'); if (r?.ok) { UI.room = lr.rooms.length; closeSheet(true); ctx.refresh(); } } }, `Comprar por ${num(n.price)} oro`)) });
+    h('button.btn.gold.wide', { type: 'button', disabled: low, onclick: (e) => { const r = ctx.act(e.currentTarget, (g) => g.buyRoom(), () => '¡Sala nueva!'); if (r?.ok) { UI.room = lr.rooms.length; closeSheet(true); ctx.refresh(); } } }, low ? `Se desbloquea en el nivel ${n.lvl}` : `Comprar por ${num(n.price)} oro`)) });
 }
 
 /* ---------- Inventario ---------- */

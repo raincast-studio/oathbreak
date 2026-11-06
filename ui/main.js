@@ -4,7 +4,7 @@
 import './telemetry-sink.js'; // v17 telemetría: primero, para capturar errores desde el arranque
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
-import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
+import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, sheetPopPending, afterSheetPop, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
 import { sfx, cmdSfx } from './audio.js';
 import { errText } from './errors.js';
 import { showOnboarding, resetTutorial } from './onboarding.js';
@@ -158,13 +158,14 @@ function lvlPop() {
   burst(b.left + b.width / 2, b.top + b.height / 2, { n: 12, cls: '.star', spread: 52 });
 }
 
+const NARROW = matchMedia('(max-width: 420px)'); // v17-qa: una sola consulta (antes una por segundo); mismo corte que las fichas en el CSS
 // Cuentas regresivas calculadas acá con el dato de la fachada; solo se vuelve a consultar al llegar a 0.
 function tickEnergy() {
   const p = S.player;
   if (!p) return;
   const full = p.energy >= p.energyMax;
   const left = p.nextEnergyMs - (performance.now() - S.at);
-  $('#en-sub').textContent = full ? 'LLENA' : matchMedia('(max-width: 380px)').matches ? `+1 ${clock(left)}` : `+1 EN ${clock(left)}`; // v15: corto a 360 px
+  $('#en-sub').textContent = full ? 'LLENA' : NARROW.matches ? `+1 ${clock(left)}` : `+1 EN ${clock(left)}`; // v15: corto a 360 px; v17-qa: también a 390 (se cortaba)
   $('#energy').setAttribute('aria-label', `Energía ${p.energy} de ${p.energyMax}${full ? ', llena' : `, más 1 en ${clock(left)}`}`);
   for (const el of document.querySelectorAll('[data-energy-cd]')) el.textContent = clock(left);
   let done = false;
@@ -224,12 +225,15 @@ function inboxSheet() {
       h('span.r-info', h('strong', `${role === 'attacker' ? 'Atacaste a' : 'Te atacó'} ${foe.name}`), h('span.muted', `${won ? 'Victoria' : 'Derrota'} · ${ago(S.now - r.ts)}`)),
       h(`span.r-gold.tnum${gold > 0 ? '.plus' : gold < 0 ? '.minus' : ''}`, gold ? `${gold > 0 ? '+' : '−'}${num(Math.abs(gold))}` : '0'),
       read ? null : h('span.dot.inline', { 'aria-label': 'Sin leer' })));
-  }))) : h('p.empty', 'Todavía no hay combates.') });
+  }))) : h('div.stack', // v17-qa: estado vacío con salida (antes solo "Todavía no hay combates.")
+    h('p.empty', 'Todavía no hay combates. Acá vas a ver cada pelea: las que empezás vos y las de quienes te ataquen.'),
+    h('button.btn.gold.wide', { type: 'button', onclick: () => { closeSheet(); go('arena'); } }, 'Ir a la Arena')) });
 }
 
 /* ---------- Navegación ---------- */
 // intent: sub-sección a abrir en la vista destino (p. ej. 'equipo' en Personaje, 'tienda' en Guarida).
 function go(tab, { focus = false, intent = null } = {}) {
+  if (sheetPopPending()) return afterSheetPop(() => go(tab, { focus, intent })); // v17-qa: desde una hoja, después de cerrarla
   if (!view(tab)) tab = 'base';
   const changed = S.tab !== tab;
   S.tab = tab; S.intent = intent;
@@ -242,13 +246,14 @@ function go(tab, { focus = false, intent = null } = {}) {
 }
 
 function drawTab() {
+  if (!view(S.tab)) return; // v17-qa: durante el arranque (S.tab = null) no hay pestaña que dibujar
   const [, mod] = view(S.tab);
   $('#view').replaceChildren(mod.render({ S, game, act, refresh, refreshTop, celebrate, go }));
   S.intent = null;
   document.title = `${mod.title} · OATHBREAK`;
 }
 
-addEventListener('hashchange', () => go(location.hash.slice(1)));
+addEventListener('hashchange', () => { if (location.hash.slice(1) !== S.tab) go(location.hash.slice(1)); }); // v17-qa: sin redibujar si ya está ahí
 addEventListener('keydown', (e) => {
   if (sheetOpen() || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select') || document.querySelector('.hunt-layer, .onb, .evo-layer')) return; // v15.1: tampoco con la evolución abierta
   const v = VIEWS.find(([, , , key]) => key === e.key.toLowerCase());
@@ -367,10 +372,9 @@ function catchUp() {
 }
 async function start(tab) {
   mount();
-  S.tab = tab;
+  S.tab = null; // v17-qa: go() ve un cambio de pestaña y hace un solo refresh() completo (antes refresh() + go() dibujaban la pestaña dos veces)
   await catchUp();
-  refresh();
-  go(S.tab);
+  go(tab);
   const note = cloud.takeNotice();
   if (note) toast(note, 'prize');
   claimRef(game, refresh);
@@ -380,6 +384,7 @@ async function start(tab) {
 }
 // Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Inicio con "Primeros pasos".
 function boot() {
+  document.getElementById('boot')?.remove(); // v17-qa: pantalla de carga de index.html
   if (game.saveIssue()) return saveIssueScreen(game.saveIssue());
   if (!game.hasCharacter()) return showOnboarding(game, () => start('base'));
   const k = location.hash.slice(1);
