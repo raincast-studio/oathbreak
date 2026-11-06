@@ -224,7 +224,9 @@ function inboxSheet() {
       h('span.r-info', h('strong', `${role === 'attacker' ? 'Atacaste a' : 'Te atacó'} ${foe.name}`), h('span.muted', `${won ? 'Victoria' : 'Derrota'} · ${ago(S.now - r.ts)}`)),
       h(`span.r-gold.tnum${gold > 0 ? '.plus' : gold < 0 ? '.minus' : ''}`, gold ? `${gold > 0 ? '+' : '−'}${num(Math.abs(gold))}` : '0'),
       read ? null : h('span.dot.inline', { 'aria-label': 'Sin leer' })));
-  }))) : h('p.empty', 'Todavía no hay combates.') });
+  }))) : h('div.stack', // v17-qa: estado vacío con salida (antes solo "Todavía no hay combates.")
+    h('p.empty', 'Todavía no hay combates. Acá vas a ver cada pelea: las que empezás vos y las de quienes te ataquen.'),
+    h('button.btn.gold.wide', { type: 'button', onclick: () => { closeSheet(); go('arena'); } }, 'Ir a la Arena')) });
 }
 
 /* ---------- Navegación ---------- */
