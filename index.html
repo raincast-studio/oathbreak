@@ -758,7 +758,7 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .event-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--violet) 22%, var(--surface)); border: 2px solid var(--violet); font-size: 14px; }
 .event-banner .ico { color: var(--gold); }
 @media (max-width: 420px) { /* v17-qa: "RENOM." se cortaba como "REN…" a 390 px */
-  .chip { padding: 5px 5px; gap: 4px; } .chip-ico { width: 20px; height: 20px; } .chip-txt small { letter-spacing: .02em; }
+  .chip { padding: 5px 5px; gap: 4px; } .chip-ico { width: 20px; height: 20px; } .chip-txt small { font-size: 10px; letter-spacing: .02em; } /* y "+1 19:59" */
 }
 @media (max-width: 380px) { /* v17-qa: filas de rivales a 360 px: el nombre y "Nv · #puesto · reput." tenían 96 px y se cortaban */
   .riv { padding: 10px; } .riv:has(> .more-btn) { gap: 6px; } .riv .avatar.lg { width: 48px; height: 48px; } .atk { min-width: 84px; }
