@@ -17,12 +17,15 @@ export const W = CFG.lair.room.w, H = CFG.lair.room.h;
 export const footprint = (id, rot) => { const s = ITEM[id].size; return rot % 2 ? [s[1], s[0]] : s; };
 
 // Miniatura de un objeto para listas (inventario, tiendas, regalos): dibujo, o patrón si es piso/pared.
+// v17: los exclusivos de una facción llevan su sello (escudo dorado / cabeza con cuernos) y un brillo de su color abajo.
+const FAC = { hero: 'Exclusivo de Héroes', villain: 'Exclusivo de Villanos' };
 export function swatch(id, def = ITEM[id]) {
-  const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}`;
+  const cls = `span.swatch.cat-${def.cat}.r-${def.rarity}${def.faction ? `.f-${def.faction}` : ''}`;
   if (def.cat === 'piso') return h(cls + '.has-art', { style: { background: floorBg(id) } });
   if (def.cat === 'pared') return h(cls + '.has-art', { style: { background: wallBg(id) } });
   const a = art(id, 'sw-art');
-  return a ? h(cls + '.has-art' + (def.size[0] > def.size[1] ? '.wide' : ''), a) : h(cls, initials(def.name));
+  const seal = FAC[def.faction] ? h(`span.fac.fac-${def.faction}`, { role: 'img', 'aria-label': FAC[def.faction], title: FAC[def.faction] }) : null;
+  return a ? h(cls + '.has-art' + (def.size[0] > def.size[1] ? '.wide' : ''), a, seal) : h(cls, initials(def.name), seal);
 }
 
 // Paletas de piso y pared (color base; el dibujo está en art.js).
@@ -66,7 +69,9 @@ function piece(p, opts, under) {
   const z = isFlat(p.id) ? 1 : 2 * (p.y + hh) + (p.on ? 1 : 0);
   const style = { gridColumn: `${p.x + 1} / span ${w}`, gridRow: `${p.y + 1} / span ${hh}`, '--z': z };
   if (under) style['--lift'] = (1 - surfaceTop(under.id, under.rot, p.y - under.y)).toFixed(2);
-  const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
+  // v17: lo que toca la pared (fila 0, en el piso, con alto) proyecta oclusión sobre la junta piso-pared (CSS .wall).
+  const wall = !p.on && p.y === 0 && !isFlat(p.id) ? '.wall' : '';
+  const el = h(`div.piece.cat-${def.cat}.r-${def.rarity}${wall}${p.on ? '.on' : ''}${opts.selected && opts.selected === p.uid ? '.sel' : ''}`, {
     style, title: def.name,
   }, art(p.id, 'p-art', p.rot) ?? h('span.p-label', initials(def.name)));
   if (el.firstChild?.classList.contains('p-art')) el.classList.add('has-art');

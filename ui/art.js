@@ -1,17 +1,46 @@
-// Arte de la Guarida (v15, pulido en v15.1): un dibujo vectorial propio por objeto, en vista frontal "chibi" con contorno grueso, que
-// encaja en su huella de la grilla (100 unidades por casilla). Los muebles con variantes de material comparten dibujo y
-// cambian de paleta y de adornos (gema, vetas, halo). Pisos y paredes son patrones CSS. Sin imágenes externas: ~46 KB (~16 KB gzip).
+// Arte de la Guarida (v15, pulido en v15.1, volumen en v17): un dibujo vectorial propio por objeto, en vista frontal "chibi" con
+// contorno grueso, que encaja en su huella de la grilla (100 unidades por casilla). Los muebles con variantes de material comparten
+// dibujo y cambian de paleta y de adornos (gema, vetas, halo). Pisos y paredes son patrones CSS. Sin imágenes externas.
+//
+// LUZ DEL JUEGO (v17, igual que los sprites de personajes): una sola luz principal, cálida (#FFF4DC), desde ARRIBA A LA IZQUIERDA y
+// un poco al frente; la sombra propia cae abajo a la derecha y se enfría hacia violeta (#2A1744, el tono de la noche del juego).
+//  · Volumen por sistema, no a mano: cada forma con contorno se pinta con un degradado compartido por id según su color
+//    (lineal de arriba hacia abajo en rectángulos, radial con brillo arriba a la izquierda en curvas). Los degradados viven una
+//    sola vez en un <svg id="art-defs"> del documento (vol/flush), no en cada dibujo.
+//  · Sombra de contacto: elipse con degradado radial (sin blur), corrida a la derecha; la oclusión contra la pared la pone el CSS
+//    (.piece.wall). · Contorno: casi negro y frío como el de los sprites, 4 u. por fuera y 3 o menos por dentro; en miniatura se engrosa
+//    para conservar ~1,6 px en pantalla, el mismo peso que el sprite del personaje en Base.
 import { ITEM } from '../src/game.js';
 
-const OL = '#22152F';
+const OL = '#160D22', LIT = '#FFF4DC', DUSK = '#2A1744';
+const hx = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+const mix = (a, b, t) => { const B = hx(b); return '#' + hx(a).map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
+const made = new Set();
+let pend = '', MIR = false; // MIR: se dibuja algo que después se espeja (la luz tiene que seguir viniendo de la izquierda)
+// Degradado de volumen para un color (#rrggbb): 'l' lineal (rectángulos), 'r' radial (curvas). Otros rellenos quedan igual.
+// Rendimiento: los detalles chicos (a < 400 u², perillas, gemas, patas finas) van planos: su volumen no se ve y cada forma
+// con degradado cuesta al pintar. El radial es simple (sin foco corrido), más barato que el cónico de dos puntos.
+function vol(f, k, a = 1e9) {
+  if (f === OL || a < 400 || !/^#[0-9a-f]{6}$/i.test(f)) return f;
+  if (MIR && k === 'r') k = 'q';
+  const id = k + f.slice(1).toLowerCase();
+  if (!made.has(id)) {
+    made.add(id);
+    const st = (o, c) => `<stop offset="${o}" stop-color="${c}"/>`;
+    pend += k === 'l' ? `<linearGradient id="${id}" x2="0" y2="1">${st(0, mix(f, LIT, 0.34))}${st(0.4, f)}${st(1, mix(f, DUSK, 0.4))}</linearGradient>`
+      : `<radialGradient id="${id}" cx="${k === 'q' ? 0.66 : 0.34}" cy=".27" r=".82">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
+  }
+  return `url(#${id})`;
+}
 const S = `stroke="${OL}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"`;
-const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${f}" ${S} ${x2}/>`;
-const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${f}" ${S} ${x2}/>`;
+// x2 va antes de S: con atributos repetidos el parser HTML se queda con el primero (antes los "stroke-width" finos se perdían).
+const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${x2} fill="${vol(f, 'l', w * h)}" ${S}/>`;
+const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" ${x2} fill="${vol(f, 'r', rx * ry * 3.1)}" ${S}/>`;
 const C = (cx, cy, r, f, x2 = '') => E(cx, cy, r, r, f, x2);
-const P = (d, f, x2 = '') => `<path d="${d}" fill="${f}" ${S} ${x2}/>`;
-const L = (d, c = OL, w = 4) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
-const HL = (d, w = 4) => L(d, 'rgba(255,255,255,.45)', w); // brillo
-const shadow = (cx, cy, rx) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.16}" fill="rgba(0,0,0,.28)"/>`;
+const P = (d, f, x2 = '') => `<path d="${d}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
+const L = (d, c = OL, w = 3) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const HL = (d, w = 4) => L(d, 'rgba(255,250,235,.5)', w); // brillo (del lado de la luz)
+const shadow = (cx, cy, rx) => `<ellipse cx="${+(cx + rx * (MIR ? -0.08 : 0.08)).toFixed(1)}" cy="${cy}" rx="${+(rx * 1.06).toFixed(1)}" ry="${+(rx * 0.2).toFixed(1)}" fill="url(#cs)"/>`;
 const sparkle = (x, y, s = 6, c = '#FFF6C8') => `<path d="M${x} ${y - s}L${x + s * 0.3} ${y - s * 0.3}L${x + s} ${y}L${x + s * 0.3} ${y + s * 0.3}L${x} ${y + s}L${x - s * 0.3} ${y + s * 0.3}L${x - s} ${y}L${x - s * 0.3} ${y - s * 0.3}Z" fill="${c}"/>`;
 
 // Materiales: [principal, sombra, detalle, tela]. v15.1: tonos más separados (pino miel claro, roble rojizo, ébano casi
@@ -62,6 +91,52 @@ const SIDE = {
     + HL('M28 96V130', 3) + R(8, 146, 84, 16, d, 5) + R(16, 160, 10, 34, d, 3) + R(74, 160, 10, 34, d, 3),
   biombo: ([m, d, , f]) => shadow(50, 194, 36) + screenPanel(36, 14, 50, 70, m, d, f, true) + screenPanel(14, 64, 50, 70, m, d, f, false)
     + screenPanel(36, 114, 50, 70, m, d, f, true),
+  // v17: cama de costado (2×2): cabecera alta a la izquierda, piecera baja, almohada y frazada vistas de lado.
+  cama: ([m, d, t]) => shadow(100, 192, 92) + R(12, 30, 34, 162, m, 14) + C(29, 58, 8, t) + R(158, 102, 30, 90, m, 10)
+    + R(40, 112, 124, 52, '#F4EEFF', 12) + R(84, 106, 82, 62, d, 12) + L('M100 112V164', 'rgba(255,255,255,.35)', 4) + R(46, 94, 46, 26, '#FFFFFF', 12)
+    + R(40, 160, 124, 14, m, 5) + R(48, 172, 12, 20, d, 3) + R(146, 172, 12, 20, d, 3) + HL('M20 44V170') + HL('M50 102H84', 3),
+  /* Objetos únicos largos, girados (la profundidad sube por la pantalla). 2×1 → 100×200, 3×1 → 100×300, 3×2 → 200×300, 1×2 → 200×100. */
+  sillon: () => shadow(50, 194, 44) + R(14, 18, 72, 36, '#9A3A4C', 14) + R(58, 24, 32, 150, '#B0485A', 16) + R(14, 44, 52, 114, '#C9586A', 12)
+    + L('M18 100H62', '#8E2D40', 3) + C(74, 70, 3, '#8E2D40', 'stroke-width="0"') + C(74, 130, 3, '#8E2D40', 'stroke-width="0"')
+    + R(8, 138, 84, 42, '#9A3A4C', 14) + R(16, 178, 10, 14, WOOD[1], 2) + R(74, 178, 10, 14, WOOD[1], 2) + HL('M66 40V156') + HL('M20 150H80', 3),
+  estanteria: () => shadow(50, 194, 44) + R(26, 6, 64, 100, WOOD[0], 6) + R(26, 100, 64, 92, WOOD[1], 6) + R(34, 112, 48, 68, WOOD[2], 4)
+    + ['#B0485A', '#4FA3FF', '#3DDC97', '#FFC93C', '#8E44F0', '#E2364B', '#5CC8FF', '#F0A04B', '#B07CFF', '#3DDC97', '#E2364B', '#FFC93C', '#4FA3FF', '#B0485A']
+      .map((c, i) => R(i % 2 ? 10 : 8, 8 + i * 13, i % 3 ? 18 : 20, 11, c, 2, 'stroke-width="2.5"')).join('') + E(58, 140, 12, 9, '#F1E8D4') + HL('M36 16V96', 3),
+  vitrina: () => shadow(50, 194, 42) + R(12, 12, 76, 152, WOOD[2], 8) + R(20, 20, 60, 136, 'rgba(189,232,255,.35)', 4) + cupMini(50, 62, '#FFC93C')
+    + R(40, 82, 20, 26, '#B07CFF', 3) + C(50, 80, 6, '#E8F7FF') + R(30, 124, 40, 14, '#E8E6F0', 3) + L('M34 124L50 112L66 124', '#C9A13B', 3)
+    + R(8, 158, 84, 30, WOOD[0], 5) + R(14, 186, 10, 8, WOOD[1], 2) + R(76, 186, 10, 8, WOOD[1], 2) + HL('M28 28L36 146', 3),
+  acuario: () => shadow(50, 194, 42) + R(14, 12, 72, 160, 'rgba(92,200,255,.5)', 6) + R(16, 112, 68, 58, 'rgba(58,143,208,.55)', 4, 'stroke-width="0"')
+    + L('M28 168Q34 148 28 130M72 168Q66 150 74 138', '#3DDC97', 4) + P('M50 36Q58 48 50 60Q42 48 50 36ZM50 60L43 70H57Z', '#FF8F3C', 'stroke-width="3"')
+    + P('M34 78Q41 88 34 98Q27 88 34 78ZM34 98L28 106H40Z', '#FFC93C', 'stroke-width="3"') + C(66, 50, 3, '#E8F7FF', 'stroke-width="1.5"') + C(62, 64, 2, '#E8F7FF', 'stroke-width="1.5"')
+    + R(10, 6, 80, 10, '#5C5670', 3) + R(10, 166, 80, 26, WOOD[1], 4) + HL('M24 22V100'),
+  altar: () => lampGlow(50, 66, 42, '#B07CFF') + shadow(50, 194, 44) + R(16, 140, 68, 52, '#2A2140', 6) + R(8, 22, 84, 124, '#3A2B5C', 6) + R(20, 34, 60, 100, '#22183C', 4)
+    + P('M50 150L60 162L50 174L40 162Z', '#B07CFF', 'stroke-width="3"') + C(50, 70, 12, '#B07CFF') + '<circle cx="50" cy="70" r="5" fill="#F4EEFF"/>'
+    + R(46, 106, 8, 14, '#F1E8D4', 2, 'stroke-width="3"') + flame(50, 102, 0.5, '#B07CFF', '#F4EEFF') + R(46, 30, 8, 12, '#F1E8D4', 2, 'stroke-width="3"') + flame(50, 26, 0.45, '#B07CFF', '#F4EEFF'),
+  chimenea: () => shadow(50, 294, 46) + R(14, 10, 72, 276, '#A69EB3', 6) + R(8, 4, 84, 16, '#8A8296', 4)
+    + [[24, 30], [52, 54], [24, 78], [52, 238], [24, 262]].map(([x, y]) => R(x, y, 26, 16, '#8A8296', 3, 'stroke-width="2.5"')).join('')
+    + P('M14 108Q46 116 46 168Q46 222 14 232Z', '#22152F') + lampGlow(30, 170, 30, '#FF7A2E') + flame(24, 190, 1.1, '#FF7A2E', '#FFC93C') + flame(30, 164, 0.9, '#FFB23C', '#FFF1B0')
+    + R(8, 102, 10, 136, '#8A8296', 4) + R(6, 236, 88, 14, '#8A8296', 4) + HL('M66 20V230'),
+  piano: () => shadow(100, 294, 90) + R(38, 250, 14, 44, '#1A1426', 4) + R(148, 250, 14, 44, '#1A1426', 4) + R(94, 120, 12, 174, '#1A1426', 4)
+    + P('M22 252V62Q22 12 76 12Q124 12 150 62Q166 92 172 136Q178 180 178 252Z', '#2A2140') + P('M40 228V72Q40 32 78 30Q114 30 134 70Q148 100 154 140Q160 180 160 228Z', '#3A2E58')
+    + L('M62 214V60M82 214V44M102 214V46M122 214V64M142 214V108', '#C9A13B', 2) + R(62, 192, 76, 26, '#F1E8D4', 3) + L('M70 200H128M70 208H118', '#8E7FB8', 2)
+    + R(18, 222, 164, 14, '#2A2140', 4) + R(20, 234, 160, 28, '#F4EEFF', 3)
+    + Array.from({ length: 10 }, (_, i) => R(30 + i * 15, 234, 8, 15, '#1A1426', 1, 'stroke-width="2"')).join('') + HL('M34 70Q40 30 80 22'),
+  mapa_mundi: () => shadow(100, 294, 90) + R(28, 240, 16, 54, WOOD[1], 4) + R(156, 240, 16, 54, WOOD[1], 4) + R(10, 14, 180, 230, WOOD[0], 10) + R(24, 28, 152, 198, '#F1E1B8', 6)
+    + P('M60 44Q86 38 96 58Q98 82 76 88Q50 86 48 64Z', '#C9B07A', 'stroke-width="3"') + P('M110 104Q146 100 156 124Q160 154 128 160Q100 158 100 132Z', '#C9B07A', 'stroke-width="3"')
+    + P('M46 168Q74 162 88 178Q84 202 58 206Q40 196 46 168Z', '#C9B07A', 'stroke-width="3"') + L('M84 86Q104 100 112 110', '#E2364B', 3)
+    + '<path d="M138 176l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#E2364B"/>' + R(8, 234, 184, 14, WOOD[1], 4),
+  trono: () => shadow(100, 194, 86) + R(38, 140, 112, 46, '#6E2AB8', 4) + R(36, 110, 116, 32, '#C9586A', 10) + P('M116 186V38Q116 8 140 8Q166 8 166 38V186Z', '#8E44F0')
+    + P('M126 122V44Q141 26 156 44V122Z', '#B07CFF') + P('M141 2L151 18H131Z', '#FFC93C') + C(141, 64, 10, '#FFC93C') + C(141, 64, 4, '#E2364B', 'stroke-width="0"')
+    + R(28, 94, 96, 20, '#FFC93C', 8) + R(28, 112, 22, 62, '#FFC93C', 8) + HL('M124 40Q140 20 158 40') + HL('M44 120H110', 3) + sparkle(178, 30, 8),
+  sarcofago: () => shadow(100, 96, 90) + R(22, 70, 156, 24, '#4A4560', 5) + P('M12 50L44 20H172L190 36V64L172 80H44Z', '#C9A13B') + P('M24 50L50 28H168L180 40V60L168 72H50Z', '#3A2B5C')
+    + E(56, 50, 15, 17, '#E8C77A') + C(52, 44, 3, OL) + C(52, 56, 3, OL) + L('M64 46V54', OL, 3) + L('M38 36Q30 50 38 64', '#4FA3FF', 4)
+    + L('M100 32V68M126 30V70M150 32V68', '#C9A13B', 4) + P('M76 44L86 50L76 56Z', '#E2364B', 'stroke-width="3"'),
+  banco_plaza: () => shadow(50, 194, 44) + R(14, 26, 54, 140, '#4FB27F', 6) + L('M28 30V162M41 30V162M54 30V162', '#2F7A55', 2.5) + R(62, 18, 22, 154, '#3E9B6E', 6)
+    + L('M73 24V166', '#2F7A55', 2.5) + R(10, 20, 80, 10, IRON, 4) + R(10, 150, 80, 12, IRON, 5) + R(14, 160, 10, 32, IRON, 3) + R(76, 160, 10, 32, IRON, 3)
+    + C(19, 156, 6, '#5C5670', 'stroke-width="2.5"') + C(81, 156, 6, '#5C5670', 'stroke-width="2.5"') + pigeon(38, 84, 0.8) + HL('M20 36V150', 3),
+  tanque_clones: () => shadow(100, 96, 90) + R(26, 24, 148, 62, 'rgba(61,220,151,.45)', 30) + '<ellipse cx="106" cy="56" rx="38" ry="13" fill="#2A8A5C" opacity=".8"/><circle cx="58" cy="56" r="12" fill="#2A8A5C" opacity=".85"/>'
+    + C(140, 40, 3, '#E8FFF4', 'stroke-width="1.5"') + C(84, 74, 4, '#E8FFF4', 'stroke-width="1.5"') + HL('M42 36H160', 5)
+    + R(8, 16, 26, 76, '#5C5670', 6) + R(166, 16, 26, 76, '#5C5670', 6) + C(21, 36, 4, '#3DDC97', 'stroke-width="2"') + C(179, 36, 4, '#E2364B', 'stroke-width="2"'),
 };
 // Dónde va cada adorno de material: gema, halo y vetas (vista frontal / lateral).
 const ANCHOR = {
@@ -75,6 +150,7 @@ const ANCHOR = {
   'side:mesa': { gem: [50, 148, 6], glow: [50, 120, 58], grain: 'M40 72V132M62 72V132' },
   'side:banco': { gem: [50, 154, 5], glow: [50, 136, 56], grain: '' },
   'side:biombo': { gem: [61, 116, 5], glow: [50, 104, 62], grain: '' },
+  'side:cama': { gem: [29, 58, 7], glow: [100, 140, 96], grain: 'M22 96V178M168 120V180' },
 };
 // Adornos por material: atrás (halo) y adelante (vetas, gema, destellos). Devuelve [atrás, adelante].
 function matDeco(key, mat, w) {
@@ -114,6 +190,15 @@ const bird = ({ body, belly, wing, beak = '#F5B43C', crest = '', eyeR = 5, eyeRi
   + P('M76 56Q86 76 70 86Q66 70 66 58Z', wing) + crest + E(50, 36, 24, 21, body)
   + (eyeRing ? C(41, 35, 9, eyeRing) + C(59, 35, 9, eyeRing) : '') + eyes(41, 59, 35, eyeR) + P('M46 42L54 42L50 50Z', beak)
   + R(40, 88, 6, 6, beak, 2, 'stroke-width="3"') + R(54, 88, 6, 6, beak, 2, 'stroke-width="3"');
+
+const IRON = '#3A3550';
+// Extremo de hierro fundido del banco de plaza: pata con voluta y apoyabrazos (x: borde de afuera; r: lado derecho).
+const bend = (x, r = false) => { const k = r ? -1 : 1, X = (d) => x + d * k, d = `M${X(5)} 94Q${X(15)} 78 ${X(11)} 62Q${X(7)} 42 ${X(21)} 42Q${X(34)} 42 ${X(32)} 54Q${X(30)} 63 ${X(21)} 59`;
+  return L(d, OL, 11) + L(d, IRON, 6) + L(d, 'rgba(255,255,255,.25)', 2) + L(`M${X(-1)} 94H${X(13)}`, OL, 6); };
+// Paloma chica (posada en el banco de plaza).
+const pigeon = (x, y, s = 1) => P(`M${x - 14 * s} ${y + 4 * s}L${x - 24 * s} ${y + 8 * s}L${x - 16 * s} ${y - 2 * s}Z`, '#7E7896', 'stroke-width="3"') + E(x, y + 2 * s, 14 * s, 10 * s, '#A69EB3')
+  + C(x + 10 * s, y - 8 * s, 7 * s, '#A69EB3') + E(x + 7 * s, y - 1 * s, 5 * s, 4 * s, '#5CBFA0', 'stroke-width="0"') + C(x + 12 * s, y - 10 * s, 1.8 * s, OL, 'stroke-width="0"')
+  + P(`M${x + 16 * s} ${y - 9 * s}L${x + 22 * s} ${y - 7 * s}L${x + 16 * s} ${y - 5 * s}Z`, '#F5B43C', 'stroke-width="2"') + L(`M${x - 4 * s} ${y + 2 * s}Q${x + 2 * s} ${y + 6 * s} ${x + 6 * s} ${y + 2 * s}`, '#7E7896', 2.5);
 
 /* ---------- Objetos ---------- */
 const ART = {
@@ -184,9 +269,15 @@ const ART = {
     + R(26, 50, 248, 68, '#F1E1B8', 6) + P('M50 70Q70 56 90 66Q96 84 76 92Q56 94 50 80Z', '#C9B07A', 'stroke-width="3"')
     + P('M130 60Q170 54 186 70Q190 92 160 98Q130 96 128 80Z', '#C9B07A', 'stroke-width="3"') + P('M210 84Q236 74 252 86Q246 104 222 104Z', '#C9B07A', 'stroke-width="3"')
     + L('M96 80Q120 70 132 76', '#E2364B', 3) + `<path d="M234 64l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#E2364B"/>` + R(8, 120, 284, 12, WOOD[1], 4),
-  armadura_vieja: () => shadow(50, 196, 30) + R(30, 170, 40, 22, '#6E6680', 4) + R(36, 120, 12, 52, '#7E7690', 3) + R(52, 120, 12, 52, '#7E7690', 3)
-    + P('M26 64H74L70 124H30Z', '#8E86A0') + R(14, 64, 16, 48, '#7E7690', 6) + R(70, 64, 16, 48, '#7E7690', 6) + E(50, 40, 20, 24, '#8E86A0')
-    + R(36, 36, 28, 6, '#22152F', 2) + L('M50 16V6', '#E2364B', 6) + `<circle cx="70" cy="86" r="6" fill="#B06A3A" opacity=".8"/><circle cx="38" cy="100" r="5" fill="#B06A3A" opacity=".7"/>` + HL('M36 72V110'),
+  // v17: armadura oxidada con rodilleras, visera de rejilla, penacho raído, óxido corrido, telaraña y escudo abollado apoyado.
+  armadura_vieja: () => shadow(50, 196, 36) + R(30, 172, 40, 20, '#5C5670', 4) + R(36, 122, 12, 52, '#7E7690', 3) + R(52, 122, 12, 52, '#7E7690', 3)
+    + R(33, 144, 17, 9, '#6E6680', 3, 'stroke-width="3"') + R(50, 144, 17, 9, '#6E6680', 3, 'stroke-width="3"') + P('M26 64H74L70 124H30Z', '#8E86A0')
+    + L('M30 94H70M50 68V120', '#6E6680', 2.5) + R(12, 62, 18, 50, '#7E7690', 8) + R(70, 62, 18, 50, '#7E7690', 8) + E(50, 40, 20, 24, '#8E86A0')
+    + R(34, 35, 32, 8, OL, 3) + L('M38 48H62M38 54H62', '#6E6680', 2.5) + P('M50 17Q40 4 54 2Q50 8 61 6Q54 12 53 18Z', '#B0485A', 'stroke-width="3"')
+    + '<path d="M66 72q7 7 2 15q-4 5 -1 13M36 102q-4 6 0 12" stroke="#B06A3A" stroke-width="5" stroke-linecap="round" opacity=".75" fill="none"/>'
+    + '<circle cx="74" cy="92" r="4" fill="#B06A3A" opacity=".8"/><circle cx="56" cy="160" r="3.5" fill="#B06A3A" opacity=".7"/>'
+    + E(82, 162, 15, 21, '#8A6A4A') + C(82, 162, 5, '#C9A13B', 'stroke-width="3"') + L('M74 150L80 156M88 172L84 168', '#5E3A1D', 2.5)
+    + L('M6 8Q16 14 14 28M6 8Q22 10 28 4M6 8L22 22', 'rgba(255,255,255,.4)', 1.5) + HL('M36 72V110'),
   piano: () => shadow(150, 196, 130) + R(40, 150, 14, 44, '#1A1426', 4) + R(246, 150, 14, 44, '#1A1426', 4) + P('M20 40Q20 12 120 18L280 40V150H20Z', '#2A2140')
     + R(20, 104, 260, 34, '#F4EEFF', 3) + Array.from({ length: 12 }, (_, i) => (i % 7 === 2 || i % 7 === 6) ? '' : R(38 + i * 20, 104, 10, 20, '#1A1426', 1, 'stroke-width="2"')).join('')
     + L('M40 104V138M60 104V138M80 104V138M100 104V138M120 104V138M140 104V138M160 104V138M180 104V138M200 104V138M220 104V138M240 104V138M260 104V138', '#B8AFC8', 1.5)
@@ -263,18 +354,29 @@ const ART = {
   // Exclusivos
   farol_amistad: () => lampGlow(50, 50, 38, '#FF8FA8') + shadow(50, 94, 22) + R(44, 4, 12, 10, '#C9A13B', 3) + P('M28 24L50 12L72 24Z', '#C9A13B')
     + R(28, 24, 44, 52, 'rgba(255,143,168,.5)') + P('M50 66Q30 52 38 42Q46 36 50 46Q54 36 62 42Q70 52 50 66Z', '#E2364B', 'stroke-width="3"') + R(24, 74, 52, 10, '#C9A13B', 3),
-  trofeo_racha: () => lampGlow(50, 30, 32, '#FF7A2E') + shadow(50, 94, 24) + R(26, 76, 48, 16, '#5C5670', 4) + P('M32 76L38 48H62L68 76Z', '#8A8296')
-    + flame(50, 40, 2, '#FF7A2E', '#FFC93C') + R(36, 80, 28, 8, '#FFC93C', 2, 'stroke-width="2.5"'),
+  // v17: llama de la constancia más grande, en un pebetero con aro dorado y marcas de la racha.
+  trofeo_racha: () => lampGlow(50, 34, 38, '#FF7A2E') + shadow(50, 94, 26) + R(24, 78, 52, 14, '#5C5670', 4) + P('M28 79L36 52H64L72 79Z', '#8A8296')
+    + L('M40 60V72M46 60V72M52 60V72M58 60V72M62 58L37 74', '#FFC93C', 2.5) + E(50, 52, 22, 6, '#FFC93C') + flame(50, 44, 2.3, '#FF5A2E', '#FFC93C')
+    + flame(50, 42, 1.1, '#FFB23C', '#FFF1B0') + R(36, 82, 28, 7, '#FFC93C', 2, 'stroke-width="2.5"') + sparkle(80, 18, 6) + sparkle(20, 30, 4),
   trofeo_campeon: () => cup('#FFC93C', '#8E44F0', `<path d="M50 28l4 8l9 1l-7 6l2 9l-8 -5l-8 5l2 -9l-7 -6l9 -1z" fill="#FFF1B0"/>` + sparkle(80, 12, 6) + sparkle(20, 20, 4)),
   marco_honor: () => lampGlow(50, 46, 40, '#FFE7A8') + R(8, 8, 84, 84, '#FFC93C', 8) + R(18, 18, 64, 64, '#3A2B5C', 4) + P('M50 26L56 42L72 42L60 52L64 68L50 58L36 68L40 52L28 42L44 42Z', '#FFC93C', 'stroke-width="3"')
     + [[8, 8], [92, 8], [8, 92], [92, 92]].map(([x, y]) => C(x, y, 7, '#E2364B', 'stroke-width="3"')).join('') + sparkle(80, 22, 6),
   estandarte_victoria: () => banner('#8E44F0', '#B07CFF', P('M36 50L44 34L50 44L56 34L64 50Z', '#FFC93C', 'stroke-width="3"') + R(36, 50, 28, 6, '#FFC93C', 2, 'stroke-width="3"'), '#FFC93C'),
   // Temporada
-  temp_aura: () => `<circle cx="50" cy="56" r="40" fill="#8E44F0" opacity=".25"/><circle cx="50" cy="56" r="28" fill="#B07CFF" opacity=".35"/>` + shadow(50, 94, 24)
-    + E(50, 84, 22, 7, '#5C5670') + P('M50 20Q66 46 50 76Q34 46 50 20Z', '#B07CFF') + P('M50 34Q58 50 50 66Q42 50 50 34Z', '#F4EEFF', 'stroke-width="0"') + sparkle(22, 30, 7) + sparkle(78, 44, 6) + sparkle(30, 70, 4),
-  temp_estatua: () => shadow(50, 196, 36) + R(16, 160, 68, 32, '#8A8296', 4) + R(22, 150, 56, 14, '#A69EB3', 4) + P('M34 150L38 92H62L66 150Z', '#C9C2D6')
-    + P('M30 96Q50 80 70 96L66 106H34Z', '#B8AFC8') + C(50, 64, 18, '#C9C2D6') + L('M70 92L88 40', OL, 8) + L('M70 92L88 40', '#D9D3E3', 4) + flame(88, 36, 0.8, '#B07CFF', '#F4EEFF')
-    + L('M24 176H76', '#FFC93C', 4) + HL('M42 100V144'),
+  // v17: cristal de aurora que flota sobre un pebetero dorado, con un anillo de luz que lo orbita (mitad atrás, mitad adelante).
+  temp_aura: () => lampGlow(50, 40, 42, '#5CC8FF') + lampGlow(50, 36, 26, '#B07CFF') + shadow(50, 94, 24) + '<ellipse cx="50" cy="92" rx="30" ry="6" fill="#5CC8FF" opacity=".3"/>'
+    + L('M17 40A33 11 0 0 1 83 40', 'rgba(255,241,176,.75)', 3) + R(32, 80, 36, 12, '#5C5670', 4) + P('M38 81L42 66H58L62 81Z', '#C9A13B')
+    + E(50, 64, 21, 6, '#FFC93C') + E(50, 63, 13, 3, '#2A1744', 'stroke-width="0"') + `<path d="M50 8L64 31L50 56L36 31Z" fill="url(#au)" ${S}/>`
+    + '<path d="M50 8L64 31L50 56L36 31Z" fill="#fff" opacity=".22"/>' + L('M36 31H64M50 8V56', 'rgba(255,255,255,.6)', 2)
+    + '<path d="M50 12L59 30H50Z" fill="#fff" opacity=".7"/>' + L('M83 40A33 11 0 0 1 17 40', '#FFF1B0', 3.5) + C(21, 45, 3.5, '#FFF1B0', 'stroke-width="2"')
+    + C(74, 49, 3, '#3DDC97', 'stroke-width="2"') + sparkle(80, 16, 6) + sparkle(18, 22, 5, '#BDE8FF') + sparkle(86, 68, 4),
+  // v17: estatua de temporada con capa, laureles, antorcha de aurora y placa del pase.
+  temp_estatua: () => lampGlow(84, 40, 26, '#5CC8FF') + shadow(50, 196, 38) + R(14, 158, 72, 34, '#5C5670', 5) + R(20, 148, 60, 14, '#8A8296', 4)
+    + `<rect x="32" y="166" width="36" height="14" rx="3" fill="url(#au)" ${S}/>` + P('M28 150Q24 112 36 96H64Q76 112 72 150Z', '#A69EB3')
+    + P('M37 150L40 98H60L63 150Z', '#D9D3E3') + P('M30 100Q50 86 70 100L66 110H34Z', '#C9C2D6') + P('M40 102L62 128L57 134L37 108Z', 'url(#au)', 'stroke-width="3"')
+    + C(50, 72, 17, '#E4DEEE') + L('M36 66Q50 52 64 66', '#3E9B6E', 3) + [[36, 64], [42, 57], [58, 57], [64, 64]].map(([x, y]) => E(x, y, 4.5, 2.6, '#3DDC97', 'stroke-width="2"')).join('')
+    + L('M68 104L86 46', OL, 9) + L('M68 104L86 46', '#C9A13B', 5) + R(80, 42, 12, 8, '#FFC93C', 2, 'stroke-width="2.5"') + flame(86, 38, 1.1, '#5CC8FF', '#E8FFF4')
+    + HL('M43 106V144') + sparkle(18, 44, 6, '#BDE8FF') + sparkle(84, 118, 5),
   temp_portal: () => `<circle cx="100" cy="100" r="80" fill="#8E44F0" opacity=".2"/>` + shadow(100, 192, 80) + P('M30 190V90Q30 20 100 20Q170 20 170 90V190Z', '#5C5670')
     + P('M48 190V96Q48 40 100 40Q152 40 152 96V190Z', '#2A1458') + `<ellipse cx="100" cy="116" rx="44" ry="66" fill="url(#pt)"/>`
     + L('M100 70Q130 90 110 120Q86 140 100 160', '#E8D9FF', 4) + L('M80 90Q96 110 84 134', '#B07CFF', 3)
@@ -282,11 +384,17 @@ const ART = {
   // Tienda de renombre
   farol_aurora: () => lampGlow(50, 50, 40, '#3DDC97') + shadow(50, 94, 22) + R(44, 4, 12, 10, '#5C5670', 3) + P('M28 24L50 12L72 24Z', '#5C5670')
     + `<rect x="28" y="24" width="44" height="52" fill="url(#au)" ${S}/>` + sparkle(50, 50, 9, '#F4EEFF') + R(24, 74, 52, 10, '#5C5670', 3),
-  busto: () => shadow(50, 94, 26) + R(26, 78, 48, 14, '#8A8296', 4) + R(32, 70, 36, 10, '#A69EB3', 3) + P('M20 72Q24 48 50 48Q76 48 80 72Z', '#C9C2D6')
-    + C(50, 32, 18, '#D9D3E3') + P('M32 26Q36 8 50 10Q66 8 68 26Q60 18 50 20Q40 18 32 26Z', '#B8AFC8', 'stroke-width="3"') + L('M44 36Q50 40 56 36', OL, 2.5) + HL('M38 24Q42 18 48 16'),
-  banco_plaza: () => shadow(100, 96, 88) + R(14, 10, 172, 14, '#3E9B6E', 4) + R(14, 30, 172, 14, '#3E9B6E', 4) + R(10, 52, 180, 14, '#3E9B6E', 4)
-    + P('M22 8V92M178 8V92', 'none', 'stroke="#22152F" stroke-width="10"') + P('M22 8V92M178 8V92', 'none', 'stroke="#4A4560" stroke-width="5"')
-    + L('M16 92Q22 82 30 92M170 92Q178 82 184 92', '#4A4560', 5),
+  // v17: busto de mármol con laureles, sobre pedestal oscuro con placa dorada.
+  busto: () => shadow(50, 94, 28) + R(28, 74, 44, 20, '#3A2B5C', 4) + R(24, 68, 52, 9, '#4A3B6E', 3) + R(40, 80, 20, 7, '#FFC93C', 2, 'stroke-width="2"')
+    + P('M20 70Q22 48 50 46Q78 48 80 70Z', '#E4DEEE') + L('M30 62Q40 56 46 64M70 62Q60 56 54 64', '#B8AFC8', 2.5) + C(50, 31, 18, '#EFEAF6')
+    + P('M32 27Q36 9 50 11Q66 9 68 27Q60 19 50 21Q40 19 32 27Z', '#D9D3E3', 'stroke-width="3"') + L('M33 24Q50 12 67 24', '#3E9B6E', 2.5)
+    + [[34, 22], [41, 16], [59, 16], [66, 22]].map(([x, y]) => E(x, y, 4.5, 2.6, '#3DDC97', 'stroke-width="2"')).join('')
+    + L('M41 30H46M54 30H59', OL, 2.2) + L('M45 38Q50 41 55 38', OL, 2.2) + HL('M37 34Q38 26 44 22', 3) + sparkle(82, 22, 5),
+  // v17: banco de plaza de listones verdes con hierro fundido en volutas, placa de renombre y una paloma de visita.
+  banco_plaza: () => shadow(100, 95, 88) + R(30, 8, 8, 56, IRON, 3) + R(162, 8, 8, 56, IRON, 3)
+    + R(24, 12, 152, 12, '#3E9B6E', 5) + R(24, 28, 152, 12, '#3E9B6E', 5) + R(24, 44, 152, 10, '#3E9B6E', 4) + R(88, 30, 24, 9, '#FFC93C', 2, 'stroke-width="2.5"')
+    + R(16, 56, 168, 10, '#4FB27F', 4) + R(14, 64, 172, 12, '#3E9B6E', 5) + HL('M30 16H170', 3) + HL('M22 59H178', 2.5)
+    + bend(14) + bend(186, true) + pigeon(148, 44, 1.2),
   fuente: () => shadow(100, 192, 90) + E(100, 160, 88, 30, '#A69EB3') + E(100, 154, 74, 20, '#3A8FD0') + R(86, 70, 28, 84, '#C9C2D6', 6) + E(100, 76, 40, 14, '#A69EB3')
     + E(100, 72, 30, 9, '#5CC8FF', 'stroke-width="3"') + R(92, 26, 16, 46, '#C9C2D6', 5) + C(100, 22, 10, '#C9C2D6')
     + L('M100 12Q76 20 70 64M100 12Q124 20 130 64', '#BDE8FF', 4) + L('M76 76Q52 92 48 146M124 76Q148 92 152 146', '#BDE8FF', 4) + C(60, 154, 3, '#FFC93C', 'stroke-width="0"') + C(136, 158, 3, '#FFC93C', 'stroke-width="0"'),
@@ -306,11 +414,25 @@ const ART = {
 // Trofeo chico para la vitrina.
 function cupMini(x, y, c) { return P(`M${x - 12} ${y - 28}H${x + 12}V${y - 22}Q${x + 12} ${y - 10} ${x} ${y - 8}Q${x - 12} ${y - 10} ${x - 12} ${y - 22}Z`, c, 'stroke-width="3"') + R(x - 3, y - 9, 6, 6, c, 1, 'stroke-width="2.5"') + R(x - 9, y - 4, 18, 6, c, 2, 'stroke-width="2.5"'); }
 
-const DEFS = `<defs>
-<linearGradient id="wv" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#0E3A6A" stop-opacity=".25"/></linearGradient>
+// Degradados fijos (agua, portal, aura, sombra de contacto): van una sola vez en el <svg id="art-defs"> con los de volumen.
+const DEFS = `<linearGradient id="wv" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".25"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#0E3A6A" stop-opacity=".25"/></linearGradient>
 <radialGradient id="pt"><stop offset="0" stop-color="#F4EEFF"/><stop offset=".35" stop-color="#B07CFF"/><stop offset="1" stop-color="#3A1A7A"/></radialGradient>
 <linearGradient id="au" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3DDC97" stop-opacity=".8"/><stop offset=".5" stop-color="#5CC8FF" stop-opacity=".7"/><stop offset="1" stop-color="#B07CFF" stop-opacity=".8"/></linearGradient>
-</defs>`;
+<radialGradient id="cs"><stop offset="0" stop-color="#0E0618" stop-opacity=".62"/><stop offset=".5" stop-color="#0E0618" stop-opacity=".36"/><stop offset="1" stop-color="#0E0618" stop-opacity="0"/></radialGradient>`;
+// Vuelca al documento los degradados nuevos (en Node no hay documento: solo se arma el texto).
+function flush() {
+  if (!pend || typeof document === 'undefined' || !document.body) return;
+  let d = document.getElementById('art-defs');
+  if (!d) {
+    d = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    d.id = 'art-defs'; d.setAttribute('aria-hidden', 'true'); d.setAttribute('focusable', 'false');
+    d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none';
+    d.innerHTML = `<defs>${DEFS}</defs>`;
+    document.body.prepend(d);
+  }
+  d.firstChild.insertAdjacentHTML('beforeend', pend);
+  pend = '';
+}
 
 // Objetos planos (se ven desde arriba): al rotar se giran de verdad.
 const FLAT = new Set(['alfombra', 'alfombra_gala', 'estanque', 'mapa_ciudad']);
@@ -320,20 +442,24 @@ const SIDE_OF = { mesa: ['mesa', MAT.roble, R(30, 70, 40, 26, '#F4EEFF', 6) + E(
   mesa_exp: ['mesa', MAT.ebano, P('M28 92L32 68H44L48 92Z', 'rgba(61,220,151,.75)') + R(30, 60, 16, 8, '#B8AFC8', 2, 'stroke-width="3"') + C(66, 112, 10, 'rgba(176,124,255,.75)')] };
 // Línea de apoyo (fracción de la casilla, desde arriba) donde se apoya lo apilado, por fila dentro de la superficie.
 const SEAT = { mesa: [0.5], mesita: [0.46], mesa_exp: [0.5], altar: [0.44], vitrina: [0.18], mapa_mundi: [0.86, 0.3] };
+const ROT_SEAT = { vitrina: [0.62, 0.36], altar: [0.72, 0.38], mapa_mundi: [0.8, 0.62, 0.36] };
 export function surfaceTop(id, rot = 0, row = 0) {
   if (rot % 2 && (SIDE_OF[id] || id.startsWith('mesa_'))) return [0.86, 0.42][row] ?? 0.5;
+  if (rot % 2 && ROT_SEAT[id]) return ROT_SEAT[id][row] ?? 0.5;
   const s = SEAT[id] ?? SEAT[id.split('_')[0]] ?? [0.5];
   return s[Math.min(row, s.length - 1)];
 }
 
+// ¿Tiene vista lateral propia? (únicos por id; variantes y bases que la heredan, por su mueble base).
+const sideOf = (id) => (SIDE_OF[id] ? SIDE[SIDE_OF[id][0]] : ART[id] ? SIDE[id] : SIDE[id.split('_')[0]]);
 // Dibujo crudo en coordenadas propias (w×h casillas de 100). side: vista lateral si existe.
 function body(id, side = false) {
-  if (ART[id] && !(side && SIDE_OF[id])) return ART[id]();
+  if (ART[id] && !(side && SIDE_OF[id])) return side ? SIDE[id]?.() ?? null : ART[id]();
   const [base, mat] = SIDE_OF[id] ? [SIDE_OF[id][0], null] : id.split('_');
   const pal = SIDE_OF[id] ? SIDE_OF[id][1] : MAT[mat] ?? WOOD;
   const tbl = side ? SIDE : BASE;
   if (!tbl[base]) return null;
-  const w = side ? 100 : ITEM[id].size[0] * 100;
+  const w = (side ? ITEM[id].size[1] : ITEM[id].size[0]) * 100;
   const [back, front] = mat ? matDeco(side ? `side:${base}` : base, mat, w) : ['', ''];
   return back + tbl[base](pal) + front + (SIDE_OF[id] && side ? SIDE_OF[id][2] : '');
 }
@@ -341,40 +467,47 @@ function body(id, side = false) {
 // Markup SVG del objeto (o null para pisos/paredes, que son patrones). rot: 0..3.
 // 1 y 3: los cuadrados se espejan; los largos usan su vista lateral (o una versión escorzada); los planos giran.
 const cache = new Map();
-export function artMarkup(id, rot = 0) {
+export function artMarkup(id, rot = 0, thumb = false) {
+  if (thumb) { // Miniatura: mismo dibujo con trazos más gruesos (a 32 px un objeto de 3 casillas perdía el contorno).
+    const k = `t|${id}|${rot}`;
+    if (!cache.has(k)) { const m = artMarkup(id, rot), f = TH[Math.max(...ITEM[id].size)] ?? 2.4; cache.set(k, m && m.replace(/stroke-width="([\d.]+)"/g, (_, w) => `stroke-width="${+(w * f).toFixed(1)}"`)); }
+    return cache.get(k);
+  }
   const def = ITEM[id];
   if (!def || def.cat === 'piso' || def.cat === 'pared') return null;
   const [w, hh] = def.size, odd = rot % 2 === 1, square = w === hh, flat = FLAT.has(id);
-  const v = flat ? rot % 4 : !odd ? 0 : square ? 'm' : rot === 3 ? 'sm' : 's';
+  // 0 frente · 1 lado · 2 frente espejado · 3 lado espejado (los cuadrados sin vista lateral alternan frente y espejo).
+  const sv = !flat && !!sideOf(id), mir = !flat && (square && !sv ? odd : rot >= 2);
+  const v = flat ? rot % 4 : `${odd && (sv || !square) ? 's' : 'f'}${mir ? 'm' : ''}`;
   const key = `${id}|${v}`;
   if (cache.has(key)) return cache.get(key);
   const W0 = w * 100, H0 = hh * 100, NW = odd ? H0 : W0, NH = odd ? W0 : H0;
   let inner = null;
-  if (v === 0) inner = body(id);
-  else if (flat) {
+  MIR = mir;
+  if (flat) {
     const b = body(id);
-    inner = b && `<g transform="${rot === 1 ? `translate(${NW} 0) rotate(90)` : rot === 2 ? `translate(${NW} ${NH}) rotate(180)` : `translate(0 ${NH}) rotate(-90)`}">${b}</g>`;
-  } else if (v === 'm') { const b = body(id); inner = b && `<g transform="translate(${W0} 0) scale(-1 1)">${b}</g>`; }
-  else {
-    const base = SIDE_OF[id]?.[0] ?? id.split('_')[0];
-    const sideOk = SIDE[base] && w === 2 && hh === 1;
+    inner = b && (rot ? `<g transform="${rot === 1 ? `translate(${NW} 0) rotate(90)` : rot === 2 ? `translate(${NW} ${NH}) rotate(180)` : `translate(0 ${NH}) rotate(-90)`}">${b}</g>` : b);
+  } else {
     let b;
-    if (sideOk) b = body(id, true);
-    else { // Escorzo genérico: se angosta el lado que pasa a ser el frente y se apoya abajo, con sombra en toda la huella.
-      const raw = body(id), a = NW / W0, c = NH / H0;
-      const sx = a < c ? a : Math.min(a, c * 1.4), sy = a < c ? Math.min(c, a * 1.4) : c;
-      b = raw && shadow(NW / 2, NH - 6, NW * 0.42) + `<g transform="translate(${(NW - W0 * sx) / 2} ${NH - H0 * sy}) scale(${sx} ${sy})">${raw}</g>`;
+    if (v[0] === 'f') b = body(id);
+    else if (sv) b = body(id, true);
+    else { // Sin vista propia (los altos de 1×2): el mismo dibujo a escala pareja (sin deformar), apoyado y centrado en la huella.
+      const raw = body(id), k = Math.min(NW / W0, NH / H0);
+      b = raw && shadow(NW / 2, NH - 6, NW * 0.36) + `<g transform="translate(${(NW - W0 * k) / 2} ${NH - H0 * k}) scale(${k})">${raw}</g>`;
     }
-    inner = b && (v === 'sm' ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
+    inner = b && (mir ? `<g transform="translate(${NW} 0) scale(-1 1)">${b}</g>` : b);
   }
-  const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${DEFS}${inner}</svg>` : null;
+  MIR = false;
+  const out = inner ? `<svg viewBox="-4 -4 ${NW + 8} ${NH + 8}" preserveAspectRatio="xMidYMax meet" aria-hidden="true">${inner}</svg>` : null;
   cache.set(key, out);
+  flush();
   return out;
 }
+const TH = { 1: 1.3, 2: 1.9, 3: 2.4 };
 
 // Elemento listo para insertar (contenedor con el SVG). Si no hay dibujo, devuelve null.
 export function artEl(id, cls = 'art', rot = 0) {
-  const m = artMarkup(id, rot);
+  const m = artMarkup(id, rot, cls === 'sw-art');
   if (!m) return null;
   const el = document.createElement('span');
   el.className = cls;
@@ -385,22 +518,27 @@ export function artEl(id, cls = 'art', rot = 0) {
 /* ---------- Pisos y paredes (patrones CSS) ---------- */
 // v15.1: juntas alineadas a la grilla, menos contraste en los pisos ruidosos (mosaico, alfombra) y paredes con zócalo,
 // friso o luz para que se lean como muro y no como una franja plana.
+// v17: misma luz que los objetos. Una capa general (claridad cálida arriba a la izquierda, penumbra violeta abajo a la derecha)
+// y biseles por pieza (filo claro arriba a la izquierda, sombra abajo a la derecha) en baldosas, piedras, tablas y ladrillos.
+const FLIGHT = 'radial-gradient(130% 100% at 10% 0, rgba(255,244,220,.13), transparent 55%), linear-gradient(140deg, transparent 45%, rgba(42,23,68,.3)), ';
+const bevel = (w, h, a = 1) => `linear-gradient(135deg, rgba(255,250,235,${0.1 * a}), transparent 35% 65%, rgba(20,8,36,${0.2 * a})) 0 0 / ${w} ${h}, `;
+const WLIGHT = 'linear-gradient(90deg, rgba(255,244,220,.16), transparent 42%, rgba(42,23,68,.32)), ';
 export const FLOOR_BG = {
-  piso_piedra: 'linear-gradient(#332E48 2px, transparent 2px) 0 0 / 25% 12.5%, linear-gradient(90deg, #332E48 2px, transparent 2px) 0 0 / 12.5% 25%, radial-gradient(60% 60% at 35% 30%, rgba(255,255,255,.06), transparent) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#4E4866 0 25%, #47415E 0 50%) 0 0 / 25% 25%',
-  piso_madera: 'repeating-linear-gradient(180deg, transparent 0 calc(12.5% - 2px), #4E3018 calc(12.5% - 2px) 12.5%), linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 0 0 / 37.5% 25%, linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 18.75% 12.5% / 37.5% 25%, repeating-linear-gradient(90deg, #8A5A34 0 30%, #80522F 30% 31%, #915F37 31% 62%, #80522F 62% 63%, #8A5A34 63% 100%)',
-  piso_baldosa: 'linear-gradient(#AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, #AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#66768A 0 25%, #5B6879 0 50%) 0 0 / 25% 25%',
-  piso_marmol: 'repeating-linear-gradient(35deg, transparent 0 22px, rgba(140,128,170,.3) 22px 24px, transparent 24px 60px), repeating-linear-gradient(-20deg, transparent 0 40px, rgba(140,128,170,.2) 40px 41px), linear-gradient(rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(90deg, rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(#E4DEEE, #CFC8DD)',
-  piso_alfombra: 'radial-gradient(circle at 50% 50%, #D9A441 0 3.5%, transparent 4.5%) 0 0 / 25% 25%, linear-gradient(45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, linear-gradient(-45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, repeating-conic-gradient(#86294A 0 25%, #7E2440 0 50%) 0 0 / 25% 25%',
-  piso_mosaico: 'radial-gradient(circle at 0 0, #E0B848 0 3px, transparent 3.5px) 0 0 / 12.5% 12.5%, linear-gradient(rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, conic-gradient(from 45deg, #2F6A88 0 25%, #295F7B 0 50%, #2F6A88 0 75%, #367494 0) 0 0 / 12.5% 12.5%',
-  piso_estrellas: 'radial-gradient(circle at 20% 30%, #FFF 0 1.2px, transparent 2px) 0 0 / 17% 19%, radial-gradient(circle at 70% 60%, #FFE7A8 0 1.5px, transparent 2.5px) 0 0 / 23% 21%, radial-gradient(circle at 40% 80%, #BDE8FF 0 1px, transparent 2px) 0 0 / 13% 15%, radial-gradient(120% 90% at 50% 30%, #2B2170, #120C38)',
+  piso_piedra: FLIGHT + bevel('12.5%', '12.5%') + 'linear-gradient(#332E48 2px, transparent 2px) 0 0 / 25% 12.5%, linear-gradient(90deg, #332E48 2px, transparent 2px) 0 0 / 12.5% 25%, radial-gradient(60% 60% at 35% 30%, rgba(255,255,255,.06), transparent) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#4E4866 0 25%, #47415E 0 50%) 0 0 / 25% 25%',
+  piso_madera: FLIGHT + 'linear-gradient(rgba(255,250,235,.08), transparent 45%, rgba(20,8,36,.16)) 0 0 / 100% 12.5%, ' + 'repeating-linear-gradient(180deg, transparent 0 calc(12.5% - 2px), #4E3018 calc(12.5% - 2px) 12.5%), linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 0 0 / 37.5% 25%, linear-gradient(90deg, transparent 0 calc(100% - 2px), rgba(78,48,24,.8) 0) 18.75% 12.5% / 37.5% 25%, repeating-linear-gradient(90deg, #8A5A34 0 30%, #80522F 30% 31%, #915F37 31% 62%, #80522F 62% 63%, #8A5A34 63% 100%)',
+  piso_baldosa: FLIGHT + bevel('12.5%', '12.5%') + 'linear-gradient(#AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, #AFA8C0 2px, transparent 2px) 0 0 / 12.5% 12.5%, repeating-conic-gradient(#66768A 0 25%, #5B6879 0 50%) 0 0 / 25% 25%',
+  piso_marmol: FLIGHT + bevel('25%', '25%', 0.6) + 'repeating-linear-gradient(35deg, transparent 0 22px, rgba(140,128,170,.3) 22px 24px, transparent 24px 60px), repeating-linear-gradient(-20deg, transparent 0 40px, rgba(140,128,170,.2) 40px 41px), linear-gradient(rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(90deg, rgba(150,140,180,.35) 1px, transparent 1px) 0 0 / 25% 25%, linear-gradient(#E4DEEE, #CFC8DD)',
+  piso_alfombra: FLIGHT + 'radial-gradient(circle at 50% 50%, #D9A441 0 3.5%, transparent 4.5%) 0 0 / 25% 25%, linear-gradient(45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, linear-gradient(-45deg, transparent 46%, rgba(255,201,60,.18) 46% 54%, transparent 54%) 0 0 / 25% 25%, repeating-conic-gradient(#86294A 0 25%, #7E2440 0 50%) 0 0 / 25% 25%',
+  piso_mosaico: FLIGHT + bevel('12.5%', '12.5%', 0.7) + 'radial-gradient(circle at 0 0, #E0B848 0 3px, transparent 3.5px) 0 0 / 12.5% 12.5%, linear-gradient(rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, linear-gradient(90deg, rgba(201,161,59,.6) 1.5px, transparent 1.5px) 0 0 / 12.5% 12.5%, conic-gradient(from 45deg, #2F6A88 0 25%, #295F7B 0 50%, #2F6A88 0 75%, #367494 0) 0 0 / 12.5% 12.5%',
+  piso_estrellas: FLIGHT + 'radial-gradient(circle at 20% 30%, #FFF 0 1.2px, transparent 2px) 0 0 / 17% 19%, radial-gradient(circle at 70% 60%, #FFE7A8 0 1.5px, transparent 2.5px) 0 0 / 23% 21%, radial-gradient(circle at 40% 80%, #BDE8FF 0 1px, transparent 2px) 0 0 / 13% 15%, radial-gradient(120% 90% at 50% 30%, #2B2170, #120C38)',
 };
 export const WALL_BG = {
-  pared_ladrillo: 'linear-gradient(#4E2219 2px, transparent 2px) 0 0 / 100% 50%, linear-gradient(90deg, #4E2219 2px, transparent 2px) 0 0 / 28px 50% repeat-x, linear-gradient(90deg, #4E2219 2px, transparent 2px) 14px 100% / 28px 50% repeat-x, linear-gradient(rgba(255,255,255,.08), rgba(0,0,0,.12)), #8A4434',
-  pared_yeso: 'linear-gradient(transparent 60%, #8A7DA3 60% 64%, #A194B8 64%), radial-gradient(circle at 30% 30%, rgba(255,255,255,.22) 0 8px, transparent 22px) 0 0 / 50px 60%, #B9AFC8',
-  pared_madera: 'linear-gradient(transparent 46%, #3E2814 46% 52%, transparent 52%), repeating-linear-gradient(90deg, #6E4A2A 0 22px, #5C3D24 22px 24px)',
-  pared_tapiz: 'radial-gradient(circle, rgba(255,201,60,.7) 0 2px, transparent 2.5px) 10px 6px / 20px 14px, linear-gradient(transparent 82%, #C9A13B 82% 88%, #4A1A40 88%), repeating-linear-gradient(90deg, #6A2A5E 0 18px, #5E2454 18px 20px)',
-  pared_vitral: 'linear-gradient(rgba(255,255,255,.2), transparent 70%), linear-gradient(90deg, #1A1028 3px, transparent 3px) 0 0 / 26px 100%, linear-gradient(#1A1028 3px, transparent 3px) 0 0 / 100% 50%, repeating-linear-gradient(90deg, #35507C 0 26px, #5E3A9E 26px 52px, #2E7A64 52px 78px, #9A7E36 78px 104px, #8E2E44 104px 130px)',
-  pared_mural: 'radial-gradient(ellipse 34px 16px at 50% 100%, #2F8A62 0 97%, transparent 100%) 0 0 / 80px 100%, radial-gradient(ellipse 26px 12px at 50% 100%, #3E9B6E 0 97%, transparent 100%) 40px 0 / 80px 100%, radial-gradient(circle at 50% 120%, #FF8F3C 0 30%, transparent 31%) 20px 0 / 120px 100%, linear-gradient(#5CC8FF, #C9A13B)',
+  pared_ladrillo: WLIGHT + 'linear-gradient(rgba(255,240,220,.12), transparent 40%, rgba(0,0,0,.2)) 0 0 / 100% 50%, ' + 'linear-gradient(#4E2219 2px, transparent 2px) 0 0 / 100% 50%, linear-gradient(90deg, #4E2219 2px, transparent 2px) 0 0 / 28px 50% repeat-x, linear-gradient(90deg, #4E2219 2px, transparent 2px) 14px 100% / 28px 50% repeat-x, linear-gradient(rgba(255,255,255,.08), rgba(0,0,0,.12)), #8A4434',
+  pared_yeso: WLIGHT + 'linear-gradient(transparent 60%, #8A7DA3 60% 64%, #A194B8 64%), radial-gradient(circle at 30% 30%, rgba(255,255,255,.22) 0 8px, transparent 22px) 0 0 / 50px 60%, #B9AFC8',
+  pared_madera: WLIGHT + 'linear-gradient(transparent 46%, #3E2814 46% 52%, transparent 52%), repeating-linear-gradient(90deg, #6E4A2A 0 22px, #5C3D24 22px 24px)',
+  pared_tapiz: WLIGHT + 'radial-gradient(circle, rgba(255,201,60,.7) 0 2px, transparent 2.5px) 10px 6px / 20px 14px, linear-gradient(transparent 82%, #C9A13B 82% 88%, #4A1A40 88%), repeating-linear-gradient(90deg, #6A2A5E 0 18px, #5E2454 18px 20px)',
+  pared_vitral: WLIGHT + 'linear-gradient(rgba(255,255,255,.2), transparent 70%), linear-gradient(90deg, #1A1028 3px, transparent 3px) 0 0 / 26px 100%, linear-gradient(#1A1028 3px, transparent 3px) 0 0 / 100% 50%, repeating-linear-gradient(90deg, #35507C 0 26px, #5E3A9E 26px 52px, #2E7A64 52px 78px, #9A7E36 78px 104px, #8E2E44 104px 130px)',
+  pared_mural: WLIGHT + 'radial-gradient(ellipse 34px 16px at 50% 100%, #2F8A62 0 97%, transparent 100%) 0 0 / 80px 100%, radial-gradient(ellipse 26px 12px at 50% 100%, #3E9B6E 0 97%, transparent 100%) 40px 0 / 80px 100%, radial-gradient(circle at 50% 120%, #FF8F3C 0 30%, transparent 31%) 20px 0 / 120px 100%, linear-gradient(#5CC8FF, #C9A13B)',
 };
 export const floorBg = (id) => FLOOR_BG[id] ?? FLOOR_BG.piso_piedra;
 export const wallBg = (id) => WALL_BG[id] ?? WALL_BG.pared_ladrillo;
