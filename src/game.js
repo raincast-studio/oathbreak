@@ -307,7 +307,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       ok: true,
       list: Object.values(world.entities)
         .filter((e) => e.faction !== p.faction && S.inRange(p, e) && !BL.gone(e, now)) // v17: los bots retirados ya no figuran
-        .map((e) => ({ id: e.id, name: e.name, level: e.level, ...ecoOf(e), band: S.powerBand(p, e), loot: S.lootEstimate(e),
+        .map((e) => ({ id: e.id, name: e.name, level: e.level, ...ecoOf(e), band: S.powerBand(p, e, world), loot: S.lootEstimate(e),
           prey: e.id === S.preyOf(world, p, now) && p.preyDone !== dayKey(now), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) }))
         .sort((a, b) => b.prey - a.prey || a.level - b.level),
     })),
@@ -461,7 +461,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       list: S.revengeList(p, now).filter((r) => world.entities[r.id]).map((r) => {
         const e = world.entities[r.id];
         return { id: e.id, name: e.name, level: e.level, faction: e.faction, ...ecoOf(e), ts: r.ts, stolen: r.loot, loot: S.lootEstimate(e),
-          band: S.powerBand(p, e), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) };
+          band: S.powerBand(p, e, world), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) };
       }),
     })),
     // Ranking por reputación. scope 'rival' (default): la facción rival (los fuera de rango figuran, pero bloqueados);
@@ -479,7 +479,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       return {
         ok: true, scope,
         list: all.slice(0, TOP).map((e, i) => ({ pos: i + 1, id: e.id, name: e.name, level: e.level, rep: e.rep, faction: e.faction, me: e.id === p.id, ...ecoOf(e),
-          ...(e.faction !== p.faction && { loot: S.lootEstimate(e), band: S.inRange(p, e) ? S.powerBand(p, e) : null, block: S.attackBlock(p, e, now, { ignoreEnergy: true }) }) })),
+          ...(e.faction !== p.faction && { loot: S.lootEstimate(e), band: S.inRange(p, e) ? S.powerBand(p, e, world) : null, block: S.attackBlock(p, e, now, { ignoreEnergy: true }) }) })),
         me: { pos, of: mine.length, rep: p.rep, level: p.level, goal },
       };
     }),

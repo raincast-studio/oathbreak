@@ -56,7 +56,8 @@ const CONTRACTS_240 = (e) => (e.faction === 'hero' ? 'h4' : 'v4');
 
 // humans: jugadores reales además de p0 · share: proporción máxima de bots del plan (null = retiro apagado)
 // caps: { players, bots } cupos de ataques recibidos por día (null = los de config).
-export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, caps = {} } = {}) {
+// onWorld(world): diagnóstico (v17 fix-mundo, B10).
+export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, caps = {}, onWorld } = {}) {
   const saved = { retire: { ...CFG.bots.retire }, recv: CFG.pvp.maxReceivedPerDay, recvBot: CFG.bots.receiveFromPlayers };
   const t0 = Date.UTC(2026, 9, 19, 3);
   if (share != null) {
@@ -72,7 +73,7 @@ export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, cap
   try {
     const log = runProfile(PROFILES.activo, days, seed, {
       setup(g) {
-        g0 = g; world = g.debug.world();
+        g0 = g; world = g.debug.world(); onWorld?.(world);
         for (let i = 0; i < humans; i++) {
           const r = g.debug.addPlayer(`Jugador${i}`, i % 2 ? 'hero' : 'villain');
           const e = world.entities[r.id];

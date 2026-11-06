@@ -60,8 +60,11 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
   - Puntaje = prestigio + 2 × aplaudidores únicos.
   - El prestigio rinde menos con duplicados.
   - Hay ligas por nivel, y los lunes se premia al top 3 de cada facción y liga.
-- **Guerra de facciones:** gana la facción con más victorias en la semana. Cobran los miembros que tengan al menos 5 victorias.
-- **Temporadas:** 4 semanas y 30 escalones de Gloria, con cosméticos exclusivos en los escalones 10, 20 y 30.
+- **Guerra de facciones:** gana la facción con más victorias en la semana (las de los jugadores y, con impulso semanal, las del resto de cada facción). Cobran los miembros que tengan al menos 5 victorias.
+- **Temporadas:** 4 semanas y 30 escalones de Gloria variados (oro, XP, renombre, cofres y decoración del catálogo distinta por temporada), con cosméticos exclusivos en los escalones 10, 20 y 30. Gloria ×2 mientras estés por debajo del escalón esperado para el día (75% del ritmo). Tarjeta en Inicio y punto dorado en el avatar si hay escalones para cobrar.
+- **Rivales siempre:** al menos 8 rivales en tu rango (los bots no se escapan de tu nivel; si faltan, llegan jugadores nuevos de tu nivel). Tras 3 días afuera: bono de regreso (energía llena y un cofre) con resumen en "Mientras no estabas".
+- **Ranking:** de la facción rival y de la tuya, siempre con tu fila ("#37 de 120 héroes") y cuánto te falta para el #20 o el puesto de arriba.
+- **Una pestaña a la vez:** la pestaña vieja no guarda; muestra "El juego está abierto en otra pestaña" con "Jugar acá".
 - **Metas de largo plazo:**
   - Equipo hasta el tier 7 (nivel 75).
   - Edificios al 5.

@@ -150,12 +150,12 @@ function wcRun(A, D, h, n, st, stop) {
   }
   return st;
 }
-function wcEntry(a, d, n) {
-  const A = snap(a), D = snap(d, true), key = wcKey(a, d, A, D, n);
+function wcEntry(a, d, n, k = 1) {
+  const A = snap(a), D = snap(d, true, k), key = wcKey(a, d, A, D, n);
   return { A, D, key, hit: WC.get(key) };
 }
-export function winChance(a, d, n = CFG.matchmaking.samples) {
-  const { A, D, key, hit } = wcEntry(a, d, n);
+export function winChance(a, d, n = CFG.matchmaking.samples, k = 1) {
+  const { A, D, key, hit } = wcEntry(a, d, n, k);
   if (typeof hit === 'number') return hit;
   const st = wcRun(A, D, pairSeed(a, d), n, hit ? { ...hit } : { w: 0, i: 0 });
   const v = st.w / n;
@@ -168,8 +168,8 @@ export const winChanceCacheClear = () => WC.clear(); // para los tests
 // de simular apenas f queda decidida. El valor final está entre w/n y (w + faltan)/n; si f da lo mismo en los dos
 // extremos, por ser monótona da lo mismo en todo el medio. Lo usan el emparejamiento de los bots, la calibración, la
 // recompensa del defensor y el riesgo de XP, que solo comparan o acotan la chance.
-export function winChanceMap(a, d, f, n = CFG.matchmaking.samples) {
-  const { A, D, key, hit } = wcEntry(a, d, n);
+export function winChanceMap(a, d, f, n = CFG.matchmaking.samples, k = 1) {
+  const { A, D, key, hit } = wcEntry(a, d, n, k);
   if (typeof hit === 'number') return f(hit);
   const decided = (st) => f(st.w / n) === f((st.w + n - st.i) / n);
   const st0 = hit ? { ...hit } : { w: 0, i: 0 };
@@ -197,8 +197,20 @@ export function defenseBounty(att, def, now) {
   return { gold: Math.round(missionReward(b.missionMin, att.level).gold * r), reason: null };
 }
 
-function snap(e, defending = false) {
+// v17 (B10): un bot que defiende contra un jugador que no es su ancla pelea "espejado" a ese jugador: sus atributos
+// se escalan por poder(atacante) / poder(ancla), así queda tan parejo para quien lo ataca como para su ancla (antes,
+// con varios jugadores reales, el que invertía en la Guarida perdía contra los bots calibrados a los que no). Con un solo
+// jugador (el cliente) todos los bots orbitan a ese jugador: k = 1 y nada cambia.
+export function mirrorK(world, att, def) {
+  if (!world || !def?.isBot || att.isBot) return 1;
+  const anc = world.entities?.[def.anchor];
+  if (!anc || anc.isBot || anc.id === att.id) return 1;
+  const pa = power(anc);
+  return pa > 0 ? Math.max(CFG.matchmaking.scaleMin, Math.min(CFG.matchmaking.scaleMax, power(att) / pa)) : 1;
+}
+function snap(e, defending = false, k = 1) {
   const stats = effStats(e);
+  if (k !== 1) for (const s of CFG.stats) stats[s] = Math.max(1, Math.round(stats[s] * k));
   const tw = defending ? towerPct(e) : 0;
   if (tw) for (const k of ['def', 'agi']) stats[k] = Math.round(stats[k] * (1 + tw));
   const hp = CFG.hp.base + stats.res * CFG.hp.perRes; // = maxHp(e): la Torre no toca res
@@ -237,8 +249,8 @@ export function fixPrey(world, e, now) {
 export const lootEstimate = (e) => Math.round((lootable(e) * CFG.pvp.lootPct) / 5) * 5;
 
 // Banda visible para elegir objetivo (sin revelar stats): según tu probabilidad estimada de ganarle.
-export function powerBand(me, foe) {
-  const wc = winChance(me, foe);
+export function powerBand(me, foe, world) {
+  const wc = winChance(me, foe, undefined, mirrorK(world, me, foe)); // v17 (B10): la banda que se ve es la de la pelea
   return wc >= 0.7 ? 'debil' : wc >= 0.45 ? 'parejo' : wc >= 0.25 ? 'fuerte' : 'muy_fuerte';
 }
 
@@ -249,9 +261,10 @@ export function pvp(world, att, def, now, opts = {}) {
 
   if (!opts.ignoreEnergy) att.energy -= CFG.energy.pvpCost;
   // Riesgo/recompensa: ganarle a alguien difícil da más XP que pisar a un débil.
-  const risk = opts.duel ? 1 : winChanceMap(att, def, (wc) => Math.min(CFG.pvp.riskXpMax, Math.max(CFG.pvp.riskXpMin, 1.6 - wc)));
+  const mk = opts.duel ? 1 : mirrorK(world, att, def);
+  const risk = opts.duel ? 1 : winChanceMap(att, def, (wc) => Math.min(CFG.pvp.riskXpMax, Math.max(CFG.pvp.riskXpMin, 1.6 - wc)), undefined, mk);
   const seed = deriveSeed(world);
-  const A = snap(att), D = snap(def, true);
+  const A = snap(att), D = snap(def, true, mk);
   const res = resolveCombat(A, D, seed, CFG.combat, !opts.duel); // v15.1: los duelos entre bots no guardan informe: sin detalle
 
   const revenge = !opts.duel && revengeOn(att, def.id, now);

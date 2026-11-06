@@ -201,3 +201,24 @@ test('B9: el resto de cada facción pelea: el día 1 no es 2–0 y, sin cazar, c
     assert.deepEqual(g.state().faction, { hero: 0, villain: 0 });
   } finally { CFG.bots.label = saved; }
 });
+
+/* ---------- B10: un bot anclado a otro jugador pelea espejado a quien lo ataca ---------- */
+test('B10: bots espejados al atacante con varios jugadores reales; con uno solo, nada cambia', () => {
+  const { g, w } = newGame(8);
+  const p0 = w.entities.p0, foe = Object.values(w.entities).find((e) => e.isBot && e.faction === 'villain');
+  assert.equal(S.mirrorK(w, p0, foe), 1, 'un solo jugador: todos orbitan a p0');
+  const r = g.debug.addPlayer('Fuerte', 'hero');
+  const p1 = w.entities[r.id];
+  for (const k of CFG.stats) p1.stats[k] = 40;
+  foe.anchor = p1.id;
+  const k = S.mirrorK(w, p0, foe);
+  assert.ok(k < 0.5 + 1e-9 || Math.abs(k - S.power(p0) / S.power(p1)) < 1e-9, `k ${k}`);
+  assert.equal(S.mirrorK(w, p1, foe), 1, 'su ancla lo ve como es');
+  assert.equal(S.mirrorK(w, foe, p0), 1, 'los bots que atacan no se espejan');
+  // la banda que ve p0 es la de la pelea espejada (más fácil que el bot "real" calibrado contra p1)
+  const raw = S.winChance(p0, foe), mir = S.winChance(p0, foe, undefined, k);
+  assert.ok(mir >= raw);
+  foe.level = p0.level;
+  const rep = S.pvp(w, p0, foe, MON + HOUR, { ignoreEnergy: true }).report;
+  assert.ok(rep.defender.stats.fue <= Math.ceil(foe.stats.fue * Math.max(k, 0.5)) + 5);
+});
