@@ -222,8 +222,11 @@ export function closeSheet(silent = false, fromPop = false) {
   if (!current) return;
   const { layer, prevFocus, onClose, pushed } = current;
   current = null;
-  if ($('#app')) $('#app').inert = false;
-  document.documentElement.classList.remove('locked');
+  // v17-qa: si la hoja se abrió sobre el informe ("Reportar a…"), el juego sigue tapado e inerte hasta cerrar el informe.
+  if (!document.querySelector('.hunt-layer.in')) {
+    if ($('#app')) $('#app').inert = false;
+    document.documentElement.classList.remove('locked');
+  }
   layer.classList.remove('in');
   layer.classList.add('out');
   setTimeout(() => layer.remove(), reduced() ? 0 : 260);

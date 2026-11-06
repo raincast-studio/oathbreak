@@ -146,7 +146,8 @@ function reportView(r, me, done) {
     e.currentTarget.textContent = log.hidden ? 'Ver detalles' : 'Ocultar detalles';
   } }, 'Ver detalles');
 
-  const onKey = (e) => { if (e.key === 'Escape') { removeEventListener('keydown', onKey); done(); } };
+  // v17-qa: Esc con "Reportar a…" abierto cierra solo la hoja (la hoja ya lo marcó con preventDefault).
+  const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) { removeEventListener('keydown', onKey); done(); } };
   addEventListener('keydown', onKey);
 
   return h(`article.report.${won ? 'won' : 'lost'}`,

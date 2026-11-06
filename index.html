@@ -401,6 +401,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .inv-txt { min-width: 0; display: grid; }
 .inv-txt strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .inv-txt .muted { font-size: 13px; }
+.shop-item .inv-txt strong { white-space: normal; } /* v17-qa: nombres largos + "Hoy" se cortaban ("Radio de emergencias…") */
 .swatch { width: 44px; height: 44px; flex: none; border-radius: 12px; display: grid; place-items: center; background: var(--c); border: 3px solid var(--rb);
   color: #fff; font-family: var(--f-display); font-size: 16px; box-shadow: inset 0 -4px 0 rgba(0,0,0,.28); }
 .more { margin-right: 6px; font-size: 20px; }
@@ -660,7 +661,10 @@ button.qcard:active { transform: scale(.98); }
 @media (max-width: 380px) { .seg:has(> :nth-child(4)) { gap: 0; } .seg:has(> :nth-child(4)) .seg-btn { padding: 0 6px; font-size: 13px; } } /* v15: "Facciones" entra a 360 px */
 .mark-all { justify-self: end; }
 /* 31/10: plan de la revisión experta */
-html.locked .toasts { display: none; } /* no tapan "Cazando…" ni el informe */
+body:has(> .hunt-layer) .toasts { display: none; } /* no tapan "Cazando…" ni el informe */
+/* v17-qa: con una hoja abierta los avisos van arriba, sobre el fondo oscuro (antes se ocultaban: un error dentro de una hoja,
+   p. ej. "Te falta nivel" al comprar una sala, no se veía y el botón parecía no responder). */
+html.locked .toasts { top: calc(env(safe-area-inset-top, 0px) + 12px); bottom: auto; }
 @media (min-width: 1024px) { .toasts { bottom: 24px; } }
 .next, .invite { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r);
   background: var(--surface); border: 2px solid var(--line); }
