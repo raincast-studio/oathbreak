@@ -21,6 +21,7 @@ const visible = (world, e, now) => { const me = { ...e, mission: null }; return 
 // Una sesión de un jugador simulado: misión, amigos y regalos, 4 visitas, caza hasta quedarse sin energía, gasto y misión.
 function play(world, e, now, rng, st) {
   touchSession(world, e, now);
+  if (!st.last.has(e.id)) st.last.set(e.id, e.gold + e.bank);
   C.sync(e, now);
   if (e.mission && now >= e.mission.end) S.claimMission(e, now, rng, world);
   for (const r of So.pendingIn(e, now)) if (world.entities[r.id]) So.acceptFriend(e, world.entities[r.id], now);
@@ -41,10 +42,15 @@ function play(world, e, now, rng, st) {
     if (!pool.length) { st.endTargets++; break; }
     const r = S.pvp(world, e, rng.pick(pool), now);
     if (!r.ok) break;
-    st.attacks++; if (r.report.winner === 'attacker') st.wins++;
+    st.attacks++; if (r.report.winner === 'attacker') { st.wins++; if (r.report.defender.id[0] === 'b') st.botLoot += r.report.loot.gold; }
   }
+  st.gold += e.gold + e.bank - (st.last.get(e.id) ?? e.gold + e.bank); // oro neto ganado (antes de gastar)
+  // Gasto como el perfil activo: equipo lo barato primero, después atributos.
+  for (const t of CFG.gear.tiers) for (const slot of Object.keys(CFG.gear.slots))
+    if (e.level >= t.req && (e.gear[slot] ?? 0) < t.tier && C.itemPrice(t) <= e.gold) C.buyGear(e, slot, t.tier);
   S.spendByWeights(e, BAL, 0.25);
   if (!e.mission) S.startMission(e, CONTRACTS_240(e), now);
+  st.last.set(e.id, e.gold + e.bank);
 }
 const CONTRACTS_240 = (e) => (e.faction === 'hero' ? 'h4' : 'v4');
 
@@ -60,7 +66,7 @@ export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, cap
   }
   if (caps.players != null) CFG.pvp.maxReceivedPerDay = caps.players;
   if (caps.bots !== undefined) CFG.bots.receiveFromPlayers = caps.bots;
-  const st = { attacks: 0, wins: 0, endEnergy: 0, endTargets: 0, targets: BRACKETS.map(() => ({ n: 0, h: 0, b: 0 })), share: [] };
+  const st = { attacks: 0, wins: 0, endEnergy: 0, endTargets: 0, targets: BRACKETS.map(() => ({ n: 0, h: 0, b: 0 })), share: [], gold: 0, botLoot: 0, last: new Map() };
   const crowd = [], rng = mulberry32(seed ^ 0xc40d);
   let world, g0;
   try {
@@ -71,15 +77,18 @@ export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, cap
           const r = g.debug.addPlayer(`Jugador${i}`, i % 2 ? 'hero' : 'villain');
           const e = world.entities[r.id];
           e.sessions = i % 5 < 3 ? [0, 1, 2, 3] : [0, 3]; // 60% juega como el activo, 40% dos veces por día
+          e.early = (i >> 1) % 2 === 0;
           crowd.push(e);
         }
       },
       session(g, now, i) {
-        for (const e of crowd) if (e.sessions.includes(i)) play(world, e, now, rng, st);
+        // La mitad juega antes que p0 y la otra mitad después (nadie se queda siempre con los cupos del día).
+        for (const e of crowd) if (e.sessions.includes(i) && e.early) play(world, e, now, rng, st);
         // p0 también cuenta en los objetivos a la vista
         const p = world.entities.p0, k = bracket(p.level), free = visible(world, p, now);
         st.targets[k].n++; st.targets[k].h += free.filter((o) => !o.isBot).length; st.targets[k].b += free.filter((o) => o.isBot).length;
       },
+      after(g, now, i) { for (const e of crowd) if (e.sessions.includes(i) && !e.early) play(world, e, now, rng, st); },
       onDay(g, d) {
         const now = g.state().now, bots = Object.values(world.entities).filter((e) => e.isBot);
         const act = bots.filter((b) => !BL.retireStage(b, now)).length;
@@ -92,7 +101,8 @@ export function runCrowd({ humans = 0, share = null, days = 30, seed = 1234, cap
       p0: { goldPerDay: Math.round(s.goldPerDay), botGoldShare: s.botGoldShare, wr7: [7, 14, 30].filter((d) => d <= days).map((d) => log[d - 1].wr7),
         lvl: [1, 7, 14, 30].filter((d) => d <= days).map((d) => s.lvlAt(d)), endByEnergy: s.endByEnergy },
       crowd: { n: crowd.length, wr: st.wins / Math.max(1, st.attacks), endByEnergy: st.endEnergy / Math.max(1, st.endEnergy + st.endTargets),
-        lvlMedian: lv[lv.length >> 1] ?? null, attacksPerDay: st.attacks / Math.max(1, crowd.length) / days },
+        lvlMedian: lv[lv.length >> 1] ?? null, attacksPerDay: st.attacks / Math.max(1, crowd.length) / days,
+        goldPerDay: st.gold / Math.max(1, crowd.length) / days, botLootShare: st.botLoot / Math.max(1, st.gold) },
       targets: st.targets.map((t, i) => ({ range: BRACKETS[i], sessions: t.n, humans: t.n ? t.h / t.n : null, bots: t.n ? t.b / t.n : null })),
       share: st.share,
       kb: g0 ? g0.debug.exportSave().length / 1024 : null,
