@@ -562,7 +562,8 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .more-btn { width: 32px; min-height: 48px; padding: 0; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 20px; font-weight: 900; line-height: 1; display: grid; place-items: center; position: relative; }
 /* v17-qa: área táctil de 44 px sin ensanchar la fila (el gap es de 8 px); en la Presa del día la nota ("doble XP y bono de oro") en dos líneas en vez de "doble…". */
 .more-btn::before { content: ''; position: absolute; inset: -2px -6px; }
-.prey .riv-info .muted { white-space: normal; }
+.riv .riv-info .muted { white-space: normal; } /* también Venganza: "Nv 6 · te atacó hace 19 h" se cortaba justo en la hora */
+@media (max-width: 480px) { .people .person > .row.tight { grid-column: 1 / -1; justify-content: flex-end; } } /* solicitudes y amigos: los botones abajo (el nombre tenía 69 px) */
 @media (max-width: 480px) { .prey { padding: 14px 14px 16px; } }
 .rr-list { display: grid; gap: 8px; }
 .rr-opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; }
