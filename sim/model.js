@@ -81,12 +81,15 @@ export const PROFILES = {
 };
 
 // Simula un jugador usando SOLO la fachada pública. Devuelve un registro por día.
-export function runProfile(prof, days = 30, seed = 1234) {
+// opts.setup(g, clock): antes de empezar (p. ej. sumar jugadores reales) · opts.session(g, now, i) y opts.after(g, now, i): al empezar y al terminar cada
+// sesión del jugador simulado · opts.onDay(g, day): al cerrar cada día.
+export function runProfile(prof, days = 30, seed = 1234, opts = {}) {
   const clock = createClock(() => Date.UTC(2026, 9, 19, 3)); // lunes 00:00 ART
   const g = createGame({ storage: memoryStorage(), clock, seed, autosave: false });
   g.newCharacter('Sim', 'hero');
+  opts.setup?.(g, clock);
   const acc = {
-    missionGold: 0, missionXp: 0, lootIn: 0, winGold: 0, lootOut: 0, bounty: 0, preyGold: 0, pvpXp: 0, attacks: 0, wins: 0, defended: 0, defWins: 0,
+    missionGold: 0, missionXp: 0, lootIn: 0, lootHuman: 0, winGold: 0, lootOut: 0, bounty: 0, preyGold: 0, pvpXp: 0, attacks: 0, wins: 0, defended: 0, defWins: 0,
     workshop: 0, visitGold: 0, dailyGold: 0, dailyXp: 0, visitXp: 0, seasonGold: 0, buildSpend: 0, decorSpend: 0, statSpend: 0, gearSpend: 0, visits: 0,
     gifts: 0, giftsIn: 0, seasonTiers: 0, endEnergy: 0, endTargets: 0, sessions: 0, daysPlayed: 0, preys: 0,
   };
@@ -104,6 +107,7 @@ export function runProfile(prof, days = 30, seed = 1234) {
     for (let i = 0; plays && i < ses.length; i++) {
       g.debug.advance(Date.UTC(2026, 9, 19 + d, ses[i] + 3) - clock.now());
       acc.sessions++;
+      opts.session?.(g, clock.now(), i);
       if (g.state().player.mission?.done) { const c = g.claimMission(); acc.missionGold += c.gold; acc.missionXp += c.xp; }
       { const wk = g.claimWorkshop(); if (wk.ok) acc.workshop += wk.gold; }
       // Social: hacerse amigo de quienes lo visitan, regalar, abrir regalos y visitar.
@@ -126,7 +130,7 @@ export function runProfile(prof, days = 30, seed = 1234) {
         if (!r.ok) { if (r.error === 'sin_energia') acc.endEnergy++; else acc.endTargets++; break; }
         const rep = r.report, won = rep.winner === 'attacker';
         acc.attacks++; today.attacks++;
-        if (won) { acc.wins++; today.wins++; acc.lootIn += rep.loot.gold; acc.winGold += rep.loot.win ?? 0; }
+        if (won) { acc.wins++; today.wins++; acc.lootIn += rep.loot.gold; acc.winGold += rep.loot.win ?? 0; if (!g.debug.world().entities[rep.defender.id]?.isBot) acc.lootHuman += rep.loot.gold; }
         if (rep.prey) { acc.preyGold += rep.prey.gold; acc.preys++; acc.pvpXp += rep.prey.xp; }
         acc.pvpXp += rep.xp.attacker;
       }
@@ -164,9 +168,11 @@ export function runProfile(prof, days = 30, seed = 1234) {
       const gap = ((ses[(i + 1) % ses.length] - ses[i] + 24) % 24) || 24;
       const c = g.contracts().list.filter((x) => x.min <= gap * 60).sort((a, b) => b.min - a.min)[0];
       if (c && !g.state().player.mission) g.startMission(c.id);
+      opts.after?.(g, clock.now(), i);
     }
     if (!plays) g.debug.advance(Date.UTC(2026, 9, 20 + d, 3) - clock.now() - 1);
     daily.push(today);
+    opts.onDay?.(g, d + 1);
     const s = g.state().player;
     const lair = g.lair();
     const last7 = daily.slice(-7);
@@ -188,7 +194,7 @@ export function runProfile(prof, days = 30, seed = 1234) {
 export function summarize(log) {
   const L = log[log.length - 1];
   const xpTotal = L.missionXp + L.pvpXp + L.dailyXp + L.visitXp;
-  const botGold = L.lootIn + L.bounty + L.preyGold;
+  const botGold = L.lootIn - (L.lootHuman ?? 0) + L.bounty + L.preyGold; // v17: el botín robado a jugadores reales es una transferencia, no cuenta
   const pvpGold = botGold + L.winGold;
   const goldIn = L.missionGold + pvpGold + L.workshop + L.visitGold + L.dailyGold + L.seasonGold;
   const spent = L.buildSpend + L.decorSpend + L.statSpend + L.gearSpend;
@@ -203,4 +209,28 @@ export function summarize(log) {
     endByEnergy: L.endEnergy / Math.max(1, L.endEnergy + L.endTargets),
     lvlAt: (day) => log[day - 1]?.lvl,
   };
+}
+
+// Primera hora: winrate por sesión de 12 ataques (presa o primer objetivo disponible), gastando en atributos y con
+// misión de 4 h entre sesiones. Es la medición de la v14 (79/68/72/63/66% con 80 semillas y 5 sesiones).
+export function firstHour(seeds = 80, sessions = 5, t0 = Date.UTC(2026, 9, 19, 15)) {
+  const res = Array.from({ length: sessions }, () => [0, 0]);
+  for (let s = 1; s <= seeds; s++) {
+    const clock = createClock(() => t0);
+    const g = createGame({ storage: memoryStorage(), clock, seed: s, autosave: false });
+    g.newCharacter('Tester', s % 2 ? 'hero' : 'villain');
+    for (let ses = 0; ses < sessions; ses++) {
+      if (g.state().player.mission) g.claimMission();
+      for (let i = 0; i < 12; i++) {
+        const L = g.targets().list.filter((t) => !t.block); if (!L.length) break;
+        const r = g.attack((L.find((x) => x.prey) ?? L[0]).id); if (!r.ok) break;
+        res[ses][0] += r.report.winner === 'attacker'; res[ses][1]++;
+      }
+      for (const o of g.daily().list) g.claimDaily(o.id);
+      g.autoSpend({ fue: 1, def: 1, agi: 1, res: 1 });
+      const c = g.contracts().list.find((k) => k.min === 240); if (c) g.startMission(c.id);
+      clock.advance(4 * 3_600_000); g.state();
+    }
+  }
+  return res.map(([w, t]) => (t ? w / t : 0));
 }

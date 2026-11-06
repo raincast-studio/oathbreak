@@ -26,7 +26,7 @@ export function render(ctx) {
     return h(`li.riv${t.block ? '.blocked' : ''}`,
       avatar(foeF, t.name, '.lg', t.level),
       h('div.riv-info',
-        h('strong.display', t.name),
+        h('strong.display', t.name, t.eco ? h('span.tag', 'Eco') : null), // v17: distintivo solo con bots.label = 'eco'
         h('span.muted', `Nv ${t.level}${note ? ` · ${note}` : ''}`),
         t.block && t.block !== 'en_mision' ? h('span.t-block', errText(t.block))
           : h('span.riv-meta', h('span.loot.tnum', `Botín ${num(t.loot)} oro`))),

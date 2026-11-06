@@ -18,7 +18,7 @@ const SHELL = [
   'ui/tabs/base.js', 'ui/tabs/misiones.js', 'ui/tabs/arena.js', 'ui/tabs/guarida.js', 'ui/tabs/social.js', 'ui/tabs/personaje.js',
   'src/game.js', 'src/config.js', 'src/core.js', 'src/character.js', 'src/combat.js', 'src/systems.js', 'src/lair.js', 'src/social.js',
   'src/season.js', 'src/objectives.js', 'src/effects.js', 'src/economy.js', 'src/events.js', 'src/catalog.js', 'src/migrate.js',
-  'src/reports.js', 'src/telemetry.js', 'src/moderation.js',
+  'src/reports.js', 'src/telemetry.js', 'src/moderation.js', 'src/bots.js',
 ];
 const STAGES = ['hero', 'villain'].flatMap((f) => Array.from({ length: 10 }, (_, i) => {
   const s = String(i + 1).padStart(2, '0');

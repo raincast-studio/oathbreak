@@ -14,6 +14,15 @@ import { track, touchSession, setTelemetrySink } from './telemetry.js';
 import * as So from './social.js';
 import * as Se from './season.js';
 import * as Mod from './moderation.js';
+import * as BL from './bots.js';
+// v17: los nicks de bots pasan por el mismo filtro que los nombres de jugadores.
+BL.setBotNameFilter((n) => Mod.validateName(n).ok);
+
+// v17: datos de bots para la interfaz. eco: distintivo «Eco» (solo con bots.label = 'eco'). Activo = entró en los
+// últimos retire.activeDays días (bots: según su horario; los retirados quedan congelados en el día en que se fueron).
+const ecoOf = (e) => (BL.isEco(e) ? { eco: true } : null);
+const seenOf = (world, e, now) => (e.isBot ? BL.lastSeen(world, e, now) : e.lastSeen ?? e.createdAt ?? null);
+const activeAt = (world, e, now) => { const t = seenOf(world, e, now); return t != null && now - t < CFG.bots.retire.activeDays * DAY; };
 
 const err = (error, extra) => ({ ok: false, error, ...extra });
 const clone = (x) => (x === undefined ? x : structuredClone(x));
@@ -222,8 +231,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     targets: () => query((p, now) => ({
       ok: true,
       list: Object.values(world.entities)
-        .filter((e) => e.faction !== p.faction && S.inRange(p, e))
-        .map((e) => ({ id: e.id, name: e.name, level: e.level, band: S.powerBand(p, e), loot: S.lootEstimate(e),
+        .filter((e) => e.faction !== p.faction && S.inRange(p, e) && !BL.gone(e, now)) // v17: los bots retirados ya no figuran
+        .map((e) => ({ id: e.id, name: e.name, level: e.level, ...ecoOf(e), band: S.powerBand(p, e), loot: S.lootEstimate(e),
           prey: e.id === S.preyOf(world, p, now) && p.preyDone !== dayKey(now), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) }))
         .sort((a, b) => b.prey - a.prey || a.level - b.level),
     })),
@@ -254,7 +263,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       inventory: p.lair.inventory.map((i) => ({ ...i, item: ITEM[i.id], recycle: Lr.sellValue(i, now), ...(i.gifted && { sellableAt: Lr.giftSellableAt(i) }) })),
       prestige: Lr.prestige(p),
       visits: Lr.visitStatus(p, now),
-      guestbook: p.lair.guestbook.filter((g) => !p.muted?.includes(g.id)), // v17: sin firmas de silenciados
+      guestbook: p.lair.guestbook.filter((g) => !p.muted?.includes(g.id)).map((g) => ({ ...g, ...ecoOf(world.entities[g.id]) })), // v17: sin firmas de silenciados; marca Eco
     })),
     upgradeBuilding: (k) => command((p, now) => {
       const r = Lr.upgradeBuilding(p, k, now);
@@ -285,10 +294,21 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     // Amigos y regalos
     friends: () => query((p, now) => ({
       ok: true, ...So.giftStatus(p, now), max: CFG.social.maxFriends,
-      list: (p.friends ?? []).filter((id) => world.entities[id]).map((id) => { const f = world.entities[id]; return { id, name: f.name, faction: f.faction, level: f.level, giftedToday: So.giftStatus(p, now).sentTo.includes(id) }; }),
+      // v17: seen = última vez activo; inactive = no entra hace retire.activeDays días (un amigo bot que se retiró
+      // sigue en la lista, marcado como inactivo).
+      list: (p.friends ?? []).filter((id) => world.entities[id]).map((id) => {
+        const f = world.entities[id], seen = seenOf(world, f, now);
+        return { id, name: f.name, faction: f.faction, level: f.level, ...ecoOf(f), giftedToday: So.giftStatus(p, now).sentTo.includes(id),
+          seen, inactive: BL.gone(f, now) || !activeAt(world, f, now) };
+      }),
       giftbox: (p.giftbox ?? []).filter((g) => !p.muted?.includes(g.from)).map((g) => ({ ...g, name: ITEM[g.id].name })),
-      requests: So.pendingIn(p, now).filter((r) => world.entities[r.id] && !p.muted?.includes(r.id)).map(({ id, name, faction, level, ts }) => ({ id, name, faction, level, ts })),
-      sent: So.pendingOut(p, now).filter((r) => world.entities[r.id]).map(({ id, ts }) => ({ id, ts, name: world.entities[id].name, faction: world.entities[id].faction, level: world.entities[id].level })),
+      requests: So.pendingIn(p, now).filter((r) => world.entities[r.id] && !p.muted?.includes(r.id)).map(({ id, name, faction, level, ts }) => ({ id, name, faction, level, ts, ...ecoOf(world.entities[id]) })),
+      sent: So.pendingOut(p, now).filter((r) => world.entities[r.id]).map(({ id, ts }) => ({ id, ts, name: world.entities[id].name, faction: world.entities[id].faction, level: world.entities[id].level, ...ecoOf(world.entities[id]) })),
+      // v17: jugadores reales activos para sumar (los de tu rango primero), sobre todo cuando un amigo quedó inactivo.
+      suggest: (world.players ?? []).map((id) => world.entities[id])
+        .filter((e) => e && e.id !== p.id && !(p.friends ?? []).includes(e.id) && !So.pendingOut(p, now).some((r) => r.id === e.id) && activeAt(world, e, now))
+        .sort((a, b) => S.inRange(p, b) - S.inRange(p, a) || Math.abs(a.level - p.level) - Math.abs(b.level - p.level)).slice(0, 3)
+        .map((e) => ({ id: e.id, name: e.name, faction: e.faction, level: e.level })),
     })),
     // Amistad por solicitud: el otro tiene que aceptar (los bots contestan en 1–6 h).
     addFriend: (id) => command((p, now) => { const f = ent(id); return f ? So.addFriend(p, f, now, world) : err('jugador_invalido'); }),
@@ -330,15 +350,18 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     // Guaridas sugeridas: quienes te visitaron, destacadas y el resto; marca si hoy todavía rinde recompensa.
     visitSuggestions: () => query((p, now) => {
       const seen = new Set(Lr.todaysVisits(p, now).hosts);
+      // v17: jugadores reales activos antes que el resto; los bots que se están yendo solo si son amigos o te visitaron.
+      const mine = new Set([...(p.friends ?? []), ...p.lair.guestbook.map((g) => g.id)]);
       const ids = [...new Set([
         ...(p.friends ?? []),
         ...p.lair.guestbook.map((g) => g.id),
+        ...(world.players ?? []).filter((id) => world.entities[id] && activeAt(world, world.entities[id], now)),
         ...Lr.showcase(world, now).slice(0, 8).map((x) => x.id),
         ...Object.keys(world.entities),
-      ])].filter((id) => id !== p.id && world.entities[id]).slice(0, 40);
+      ])].filter((id) => id !== p.id && world.entities[id] && (mine.has(id) || BL.retireStage(world.entities[id], now) < 2)).slice(0, 40);
       return { ok: true, list: ids.map((id) => {
         const e = world.entities[id];
-        return { id, name: e.name, faction: e.faction, level: e.level, prestige: Lr.prestige(e).total, visitedToday: seen.has(id),
+        return { id, name: e.name, faction: e.faction, level: e.level, ...ecoOf(e), prestige: Lr.prestige(e).total, visitedToday: seen.has(id),
           friend: (p.friends ?? []).includes(id), returning: p.lair.guestbook.some((g) => g.id === id),
           requested: So.pendingOut(p, now).some((r) => r.id === id) };
       }) };
@@ -349,14 +372,14 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       ok: true,
       list: S.revengeList(p, now).filter((r) => world.entities[r.id]).map((r) => {
         const e = world.entities[r.id];
-        return { id: e.id, name: e.name, level: e.level, faction: e.faction, ts: r.ts, stolen: r.loot, loot: S.lootEstimate(e),
+        return { id: e.id, name: e.name, level: e.level, faction: e.faction, ...ecoOf(e), ts: r.ts, stolen: r.loot, loot: S.lootEstimate(e),
           band: S.powerBand(p, e), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) };
       }),
     })),
     // Ranking de la facción rival por reputación (los fuera de rango figuran, pero bloqueados).
     ranking: () => query((p, now) => ({
       ok: true,
-      list: Object.values(world.entities).filter((e) => e.faction !== p.faction).sort((a, b) => b.rep - a.rep || b.level - a.level).slice(0, 20)
+      list: Object.values(world.entities).filter((e) => e.faction !== p.faction && !BL.unlisted(e, now)).sort((a, b) => b.rep - a.rep || b.level - a.level).slice(0, 20) // v17: sin Ecos ni bots que se retiran
         .map((e, i) => ({ pos: i + 1, id: e.id, name: e.name, level: e.level, rep: e.rep, loot: S.lootEstimate(e),
           band: S.inRange(p, e) ? S.powerBand(p, e) : null, block: S.attackBlock(p, e, now, { ignoreEnergy: true }) })),
     })),
@@ -403,7 +426,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         ok: true, seed: world.seed,
         bots: Object.values(world.entities).filter((e) => e.isBot).map((b) => ({
           id: b.id, name: b.name, faction: b.faction, level: b.level, arch: b.arch, power: S.power(b), powerVsYou: +(S.power(b) / S.power(p)).toFixed(2),
-          gold: b.gold, prestige: Lr.prestige(b).total,
+          gold: b.gold, prestige: Lr.prestige(b).total, anchor: b.anchor, retire: BL.retireStage(b, now), seen: BL.lastSeen(world, b, now), // v17
         })).sort((a, b) => a.level - b.level),
       })),
       world: () => world,

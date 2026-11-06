@@ -4,7 +4,7 @@ export const HOUR = 60 * MIN;
 export const DAY = 24 * HOUR;
 
 export const CFG = {
-  saveVersion: 5,
+  saveVersion: 6,
   dayOffsetMs: -3 * HOUR, // reset diario a las 00:00 ART
   stats: ['fue', 'def', 'agi', 'res'],
   start: { stat: 5, gold: 250 }, // 31/10: 250 para poder mejorar 2 atributos en la primera sesión
@@ -164,7 +164,46 @@ export const CFG = {
   },
 
   reports: { max: 25, detailed: 5 }, // 31/10: guardado ≤ 120 KB — solo los 5 informes más nuevos guardan las rondas
-  bots: { count: 40, maxCatchUpHours: 72, attackChancePerHour: 0.04, incomeEff: 0.85, reservePct: 0.2, handGoldMissionMin: 60, wealth: [0.3, 2.5], visitChancePerHour: 0.25, duelChancePerHour: 0.3 },
+  // Las *ChancePerHour son promedios por día (× 24): desde la v17 los bots los reparten en sus horas en línea.
+  bots: {
+    count: 40, maxCatchUpHours: 72, attackChancePerHour: 0.04, incomeEff: 0.85, reservePct: 0.2, handGoldMissionMin: 60, wealth: [0.3, 2.5], visitChancePerHour: 0.25, duelChancePerHour: 0.3,
+    // v17: transparencia (decide el dueño). 'none': los bots pasan por jugadores. 'eco': se marcan como «Ecos» y quedan
+    // fuera del ranking, del escaparate y de la guerra de facciones. Sin rivales reales no hay premio (una liga o una guerra
+    // de un solo jugador no se gana sola).
+    label: 'none',
+    eco: { prizeMinEntrants: 4, warMinReal: 2 },
+    // v17: ataques de jugadores que un bot puede recibir por día (null = pvp.maxReceivedPerDay, como hoy). Con muchos
+    // jugadores reales, el cupo de 5 de cada objetivo no alcanza para la energía de todos (ver docs/E6, Bots).
+    receiveFromPlayers: null,
+    // v17: comportamiento humano. Cada bot tiene un perfil estable derivado de la semilla (no ocupa lugar en el guardado).
+    human: {
+      tz: [[-3, 0.55], [-4, 0.12], [-5, 0.2], [-6, 0.13]], // husos LATAM: AR/BR/UY/PY · BO/VE/CL · CO/PE/EC · MX/Centroamérica
+      bed: [22.5, 26.5], sleepH: [6, 8], weekendLate: [0.5, 2], // se acuesta 22:30–2:30 (hora local), duerme 6–8 h; viernes y sábado, más tarde
+      sessions: [1.2, 3.6], twoHourP: 0.35,   // sesiones por día jugado (cada bot su ritmo); algunas se estiran a una segunda hora
+      burst: [2, 5], burstCont: [1, 3],   // acciones visibles (visitas y ataques) por hora en línea: ráfagas
+      weekend: [0.6, 1.6],                // el fin de semana juega más o menos que entre semana, según el bot
+      skipDay: [0.05, 0.3],               // días sin entrar
+      pausers: 0.25, pauseRate: [0.02, 0.06], pauseDays: [2, 6], // uno de cada cuatro se toma a veces unos días
+      replySpeed: [0.4, 2.5],             // >1 contesta rápido dentro de social.botReplyH; igual espera a estar despierto
+      warmupH: 48,     // las primeras 48 h del jugador los bots siguen su nivel cada hora (calibración de la primera hora)
+      catchUpLag: 2,   // después, suben de nivel cuando juegan, o si quedaron 2+ niveles atrás (salvo en pausa)
+      driftDays: 4,    // rachas: cada 4 días el bot va un nivel adelante, a la par o un nivel atrás de lo habitual
+      seenScanH: 336,  // "última vez activo": se busca hasta 14 días atrás
+    },
+    // v17: retiro progresivo (apagado en el cliente: hay un solo jugador real). Bots activos por rango de nivel según los
+    // jugadores reales activos. plan: [día desde `since`, proporción máxima de bots]: beta 70% → 50% → 30% → 10% al mes 3.
+    // La proporción es un techo orientativo: mandan los pisos (objetivos mínimos y capacidad de ataques recibidos).
+    retire: {
+      enabled: false, since: null, plan: [[0, 0.7], [30, 0.5], [60, 0.3], [90, 0.1]],
+      minTargets: 10,   // rivales en tu rango que siempre quedan (si no hay humanos, bots)
+      minPeers: 4,      // y de tu facción (visitas, escaparate)
+      huntsPerDay: 30,  // ataques por día de un jugador activo promedio: los objetivos tienen que poder recibirlos
+      activeDays: 7,    // un jugador cuenta como activo si entró en los últimos 7 días
+      perDay: 4,        // de a poco: como mucho 4 retiros (o regresos) por día
+      stageDays: [2, 5], // retiro: día 0 deja de ser presa y de figurar en escaparate y ranking; día 2 deja de mandar
+                          // solicitudes y regalos; día 5 queda "inactivo" (sigue en tu lista y en el libro de visitas)
+    },
+  },
   telemetry: { max: 60, sessionGapMin: 30 }, // 31/10: antes 500 (50 KB del guardado); en E6 va al servidor
   ops: { max: 50 },
   // Emparejamiento de bots por probabilidad de victoria estimada (no por "poder" lineal).
