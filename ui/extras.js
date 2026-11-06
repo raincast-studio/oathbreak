@@ -96,7 +96,7 @@ export function awaySummary(ctx, force = 0) {
   if (def.length) lines.push([def.length && lost ? 'arena' : 'shield', `Te atacaron ${def.length} ${def.length === 1 ? 'vez' : 'veces'}: ganaste ${won.length} y perdiste ${lost}`,
     [bounty ? `+${num(bounty)} oro de recompensa` : null, goldLost ? `−${num(goldLost)} oro robado` : null].filter(Boolean).join(' · ')]);
   if (p.mission?.done) lines.push(['misiones', 'Tu misión terminó', `${num(p.mission.reward.gold)} oro para cobrar`]);
-  if (p.energy >= p.energyMax) lines.push(['bolt', 'Tu energía está llena', `${p.energy} ataques disponibles`]);
+  if (p.energy >= p.energyMax && !cb) lines.push(['bolt', 'Tu energía está llena', `${p.energy} ataques disponibles`]); // con el bono ya se dice
   if (lr.ok && lr.workshop.level && lr.workshop.stored > 0) lines.push(['coin', `El Taller juntó ${num(lr.workshop.stored)} oro`, null]);
   if (fr.ok && fr.giftbox.length) lines.push(['star', `${fr.giftbox.length} ${fr.giftbox.length === 1 ? 'regalo' : 'regalos'} sin abrir`, null]);
   if (fr.ok && fr.requests.length) lines.push(['social', `${fr.requests.length} ${fr.requests.length === 1 ? 'solicitud' : 'solicitudes'} de amistad`, null]);

@@ -134,14 +134,13 @@ function passCard({ S, go }) {
   const days = Math.max(0, Math.ceil((s.endsAt - S.now) / 86_400_000));
   const open = () => go('personaje', { intent: 'temporada' });
   return h('section.card.pass-card',
-    h('div.sec-head', h('h2.display', 'Pase de temporada'), h('span.muted.tnum', `${s.reached}/${s.tiers} · ${days} ${days === 1 ? 'día' : 'días'}`)),
+    h('div.sec-head', h('h2.display', 'Pase de temporada'), h('span.muted.tnum', `${s.reached}/${s.tiers}`)),
     h('div.g-bar', { role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': s.gloryPerTier, 'aria-valuenow': into, 'aria-label': 'Gloria para el próximo escalón' },
       h('span', { style: { transform: `scaleX(${Math.min(1, into / s.gloryPerTier)})` } })),
     h('div.pass-row',
       h('div.g-info',
         s.claimable ? h('strong', `Tenés ${s.claimable} ${s.claimable === 1 ? 'escalón' : 'escalones'} para cobrar`)
           : rw ? h('strong', 'Próximo: escalón ', h('span.tnum', s.next.tier), ' · ', icon(rw.ico, 16), ' ', rw.txt) : h('strong', 'Pase completo'),
-        s.boost > 1 ? h('span.g-meta', `Gloria ×${s.boost} hasta el escalón ${s.expected}: te ponés al día`)
-          : h('span.g-meta.tnum', `${num(Math.max(0, s.gloryPerTier - into))} de Gloria para el próximo`)),
+        h('span.g-meta.tnum', `${s.boost > 1 ? `Gloria ×${s.boost} hasta el escalón ${s.expected}` : `${num(Math.max(0, s.gloryPerTier - into))} de Gloria para el próximo`} · quedan ${days} ${days === 1 ? 'día' : 'días'}`)),
       h(`button.btn.small${s.claimable ? '.gold' : '.ghost'}`, { type: 'button', onclick: open }, s.claimable ? 'Cobrar' : 'Ver pase')));
 }

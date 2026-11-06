@@ -89,7 +89,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     const gold = missionReward(K.chestMissionMin, p.level).gold;
     p.energy = Math.max(p.energy, energyMax(p)); p.energyTs = now;
     p.gold += gold; p.lair.renown += K.renown;
-    const war = world.lastPrize && world.lastPrize.week >= weekKey(last) ? world.lastPrize.faction : null;
+    // la guerra de la semana pasada, si cerró mientras no estabas (tras semanas afuera, la última que se jugó es vieja)
+    const war = world.lastPrize && world.lastPrize.week === weekKey(now) - 1 && world.lastPrize.week >= weekKey(last) ? world.lastPrize.faction : null;
     p.comeback = { ts: now, days: Math.floor((now - last) / DAY), gold, renown: K.renown, fresh,
       ...(war && { war: { winner: war.winner, hero: war.score.hero, villain: war.score.villain } }),
       ...(Se.seasonKey(last) !== Se.seasonKey(now) && { season: true }) };
