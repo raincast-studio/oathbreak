@@ -1,6 +1,7 @@
 // Ciclo de la interfaz: la fachada es la única fuente de verdad; la interfaz solo lee, dibuja y manda comandos.
 // Distribución de los mockups Chibi: barra superior con avatar, XP, buzón y 4 fichas; pestañas Inicio · Misiones · ARENA · Guarida · Social;
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
+import './telemetry-sink.js'; // v17 telemetría: primero, para capturar errores desde el arranque
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
 import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';

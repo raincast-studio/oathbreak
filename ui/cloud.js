@@ -11,6 +11,7 @@ const META = 'oathbreak.cloud';
 const PUSH_DELAY = 10_000, PUSH_EVERY = 60_000, INIT_TIMEOUT = 6_000;
 
 let base, client = null, user = null, timer = null, pushing = false;
+let token = null; // v17: token de la sesión, para el envío de telemetría con fetch keepalive (ui/telemetry-sink.js)
 // v17: borrado de cuenta. DEL marca que falta borrar en la nube (se completa al reconectar); wiping frena escrituras
 // del guardado entre el borrado local y la recarga.
 const DEL = 'oathbreak.cloud.delete';
@@ -70,7 +71,7 @@ async function connect() {
   if (!client) {
     const { createClient } = await import(LIB);
     client = createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
-    client.auth.onAuthStateChange((_e, s) => { if (s?.user) { user = s.user; emit(); } });
+    client.auth.onAuthStateChange((_e, s) => { token = s?.access_token ?? null; if (s?.user) { user = s.user; emit(); } });
   }
   let { data: { session } } = await client.auth.getSession();
   if (session && delPending()) { // v17: borrado pendiente: primero se borra la cuenta vieja; si no se puede, no se baja ni se sube nada
@@ -83,7 +84,7 @@ async function connect() {
     if (r.error) throw r.error;
     session = r.data.session;
   }
-  user = session.user;
+  user = session.user; token = session.access_token ?? token;
   const remote = await fetchRemote();
   const m = readMeta();
   if (remote && (m.uid !== user.id || remote.rev > m.rev)) adopt(remote); // otra cuenta u otro dispositivo guardó después
@@ -134,6 +135,11 @@ export async function push() {
   } catch (e) { A.error = String(e?.message ?? e); }
   finally { pushing = false; emit(); }
 }
+
+// v17 · Telemetría: destino REST para fetch keepalive (sobrevive al cierre de la pestaña; supabase-js no lo expone).
+// null sin sesión o durante el borrado de cuenta (no se manda nada de una cuenta que se está borrando).
+export const restTarget = () => (A.status === 'online' && user && token && !wiping && !delPending() ? { url: URL, key: KEY, token } : null);
+export const wipingNow = () => wiping;
 
 // v17 · Confianza: RPC genérica (submit_report, delete_my_account). Sin conexión, sin la función o con error → { ok: false }.
 export async function rpc(name, args) {

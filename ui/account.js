@@ -4,6 +4,7 @@ import { h, icon, toast, openSheet, closeSheet } from './kit.js';
 import { errText } from './errors.js';
 import { legalLink } from './legal.js';
 import { mutedCard, reportQueue } from './safety.js';
+import { emit } from './telemetry-sink.js';
 
 const NAG = 'oathbreak.cloud.nag';
 const DAY = 86_400_000;
@@ -79,6 +80,7 @@ function codeFlow({ kind, title, intro, send, verify, done, extra, resume }) {
 }
 
 export function linkSheet({ nag = false, onDone, resume } = {}) {
+  emit('link_shown', { nag }); // v17 telemetría: "Guardá tu héroe" mostrado → código enviado → vinculado (nunca el email)
   codeFlow({
     kind: 'link', resume,
     title: 'Guardá tu héroe',
@@ -86,9 +88,9 @@ export function linkSheet({ nag = false, onDone, resume } = {}) {
       h('p', nag ? '¡Buen comienzo! Hoy tu héroe vive solo en este navegador. Vinculalo a tu email para no perderlo y jugar desde cualquier dispositivo.'
         : 'Vinculá tu héroe a tu email para no perderlo y jugar desde cualquier dispositivo.'),
       h('p.muted.hint', 'Sin contraseña: cada vez que entres desde otro lado te mandamos un código.')),
-    send: cloud.linkEmail,
+    send: async (email) => { const r = await cloud.linkEmail(email); if (r.ok) emit('link_sent'); return r; },
     verify: cloud.verifyLink,
-    done: () => { toast('¡Héroe guardado en la nube!', 'prize'); onDone?.(); },
+    done: () => { emit('link_done'); toast('¡Héroe guardado en la nube!', 'prize'); onDone?.(); },
     extra: nag ? h('button.link-btn', { type: 'button', onclick: () => closeSheet() }, 'Más tarde') : null,
   });
 }

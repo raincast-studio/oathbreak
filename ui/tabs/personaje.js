@@ -5,6 +5,7 @@ import { segmented } from './guarida.js';
 import { accountCard } from '../account.js';
 import { notifyState, askNotify, installState, installButton } from '../extras.js';
 import * as A from '../audio.js';
+import { usageRow } from '../telemetry-panel.js'; // v17 telemetría
 
 // v17: Ajustes del dispositivo (sonido, música, vibración). Se guardan en este dispositivo, no en la partida.
 function settingsSheet() {
@@ -22,6 +23,7 @@ function settingsSheet() {
     row('sound', 'Sonido', au ? 'Golpes, monedas, botones y fanfarrias.' : 'Este navegador no reproduce sonido.', au),
     row('music', 'Música', au ? 'Música ambiente suave de tu facción. Gasta un poco más de batería.' : 'Este navegador no reproduce sonido.', au),
     row('vibe', 'Vibración', vb ? 'Golpes recibidos, críticos, victorias y subidas de nivel.' : 'Tu dispositivo no vibra desde el navegador (por ejemplo, en iPhone).', vb),
+    usageRow(),
     h('p.muted.hint', 'Estos ajustes son de este dispositivo: no viajan con tu partida.')) });
 }
 

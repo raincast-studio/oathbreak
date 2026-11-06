@@ -4,6 +4,7 @@ import { h, icon, num, clock, toast, openSheet, closeSheet, sprite, spriteSrc, s
 import { sfx } from './audio.js';
 import { CFG } from '../src/game.js';
 import { claimMission } from './tabs/misiones.js';
+import { emit } from './telemetry-sink.js';
 
 const LS = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
@@ -162,6 +163,7 @@ async function shareEvolution(p, st, btn) {
     const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
     const file = new File([blob], `oathbreak-etapa-${st}.png`, { type: 'image/png' });
     const text = `¡${p.name} llegó a la etapa ${st} en OATHBREAK! ${GAME_URL}?ref=${myCode()}`;
+    emit('invite_share', { via: 'evolution' });
     if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
     const href = URL.createObjectURL(blob);
     const a = h('a', { href, download: file.name });
@@ -189,8 +191,8 @@ export function registerPwa() {
   if (pwaReady) return;
   pwaReady = true;
   // Botón "Instalar": el navegador avisa que se puede instalar; guardamos el aviso para usarlo cuando el jugador toque.
-  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; dispatchEvent(new Event('oath:installable')); });
-  addEventListener('appinstalled', () => { installEvt = null; toast('¡Listo! OATHBREAK quedó instalado.', 'ok'); });
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); if (!installEvt) emit('pwa_prompt'); installEvt = e; dispatchEvent(new Event('oath:installable')); });
+  addEventListener('appinstalled', () => { installEvt = null; emit('app_installed'); toast('¡Listo! OATHBREAK quedó instalado.', 'ok'); });
   if (!('serviceWorker' in navigator) || !isSecureContext) return;
   navigator.serviceWorker.register('sw.js').then((reg) => {
     const offer = (w) => { if (w && navigator.serviceWorker.controller) updateBanner(w); };
@@ -224,10 +226,12 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 // Estado para la interfaz: 'installed' | 'prompt' (botón nativo) | 'ios' (instrucciones) | 'manual' (menú del navegador).
 export const installState = () => (standalone() ? 'installed' : installEvt ? 'prompt' : isIOS() ? 'ios' : 'manual');
 export async function install() {
+  emit('install_tap', { mode: installState() });
   if (installEvt) {
     const e = installEvt; installEvt = null;
     e.prompt();
     const r = await e.userChoice.catch(() => null);
+    emit('install_result', { outcome: r?.outcome ?? 'error' });
     if (r?.outcome !== 'accepted') installEvt = e; // se puede volver a ofrecer
     return;
   }
@@ -244,6 +248,7 @@ export const notifyState = () => (typeof Notification === 'undefined' ? 'unsuppo
 export async function askNotify() {
   if (notifyState() !== 'default') return;
   const r = await Notification.requestPermission().catch(() => 'denied');
+  emit('notify_ask', { result: r });
   toast(r === 'granted' ? 'Listo: mientras el juego siga abierto o instalado en segundo plano, te avisamos cuando termine tu misión, se llene tu energía o te ataquen.' : 'Sin permiso para avisos. Lo podés activar desde el navegador.', r === 'granted' ? 'ok' : 'err');
 }
 async function notify(title, body, tag) {
@@ -305,6 +310,7 @@ export function inviteCard(ctx) {
   const url = `${GAME_URL}?ref=${myCode()}`;
   const text = `Jugá OATHBREAK conmigo: ${p.faction === 'hero' ? 'Héroes' : 'Villanos'} contra ${p.faction === 'hero' ? 'Villanos' : 'Héroes'}, al estilo BiteFight. Entrando con este link arrancás con ${CFG.referral.newGold} de oro extra y un ${CFG.referral.itemName}: ${url}`;
   const share = async () => {
+    emit('invite_share', { via: 'share' });
     if (navigator.share) { try { await navigator.share({ title: 'OATHBREAK', text, url }); return; } catch { /* cancelado */ } }
     open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
@@ -313,7 +319,7 @@ export function inviteCard(ctx) {
     h('span.next-ico', icon('social', 20)),
     h('div.g-info', h('strong', 'Invitá a tus amigos'), h('span.muted', `Entran con +${CFG.referral.newGold} de oro y un ${CFG.referral.itemName}.`)),
     h('div.row.tight',
-      h('a.btn.gold.small', { href: `https://wa.me/?text=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener', 'aria-label': 'Invitar por WhatsApp' }, 'WhatsApp'),
+      h('a.btn.gold.small', { href: `https://wa.me/?text=${encodeURIComponent(text)}`, target: '_blank', rel: 'noopener', 'aria-label': 'Invitar por WhatsApp', onclick: () => emit('invite_share', { via: 'whatsapp' }) }, 'WhatsApp'),
       navigator.share ? h('button.btn.ghost.small', { type: 'button', onclick: share }, 'Más') : null));
 }
 // Al crear el personaje: si llegó con ?ref=CODIGO, cobra el bono de bienvenida una vez.

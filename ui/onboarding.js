@@ -6,6 +6,7 @@ import { errText } from './errors.js';
 import { signInSheet, pending } from './account.js';
 import * as cloud from './cloud.js';
 import { legalLink, TERMS_VERSION } from './legal.js';
+import { emit } from './telemetry-sink.js';
 
 const SIDES = {
   hero: { name: 'Héroes', oath: 'Juro proteger la ciudad', blurb: 'Patrullás, escoltás y rescatás. Cazás villanos y tu guarida es un cuartel de trofeos.' },
@@ -14,37 +15,43 @@ const SIDES = {
 // v17: los nombres de "Al azar" viven en src/moderation.js (NAME_POOL): nunca sale uno bloqueado.
 
 export function showOnboarding(game, onDone) {
-  let faction = null;
+  let faction = null, rnd = false, step = null;
+  const t0 = Date.now();
+  const view = (s) => { if (step !== s) { step = s; emit('onb_view', { step: s }); } }; // v17 telemetría: embudo
   const notice = cloud.takeNotice(); // v17: p. ej. "Borramos tu cuenta…" (después de borrar, se vuelve acá)
   const root = h('div.onb');
   document.body.append(root);
 
   const pickStep = () => {
+    view('faction');
     root.replaceChildren(h('div.onb-inner',
       notice ? h('p.note', { role: 'status' }, notice) : null,
       h('p.eyebrow', 'Paso 1 de 2'),
       h('h1.display.onb-title', 'Elegí tu bando'),
       h('p.muted', 'Es para siempre: define tus misiones, tu guarida y a quién cazás.'),
-      h('div.sides', Object.entries(SIDES).map(([k, s]) => h(`button.side.${k}`, { type: 'button', 'aria-pressed': String(faction === k), onclick: () => { faction = k; pickStep(); } },
+      h('div.sides', Object.entries(SIDES).map(([k, s]) => h(`button.side.${k}`, { type: 'button', 'aria-pressed': String(faction === k), onclick: () => { faction = k; emit('onb_faction', { faction: k }); pickStep(); } },
         sprite(k, '.side-sprite'),
         h('strong.display', s.name),
         h('span', s.blurb)))),
       h('button.btn.gold.big', { type: 'button', disabled: !faction, onclick: nameStep }, faction ? (faction === 'hero' ? 'Seguir como héroe' : 'Seguir como villano') : 'Elegí un bando'),
-      cloud.account().status === 'online' ? h('button.link-btn', { type: 'button', onclick: () => signInSheet({ fromGame: false, resume: pending()?.kind === 'signin' ? pending() : undefined }) }, 'Ya tengo un héroe') : null));
+      cloud.account().status === 'online' ? h('button.link-btn', { type: 'button', onclick: () => { emit('onb_signin'); signInSheet({ fromGame: false, resume: pending()?.kind === 'signin' ? pending() : undefined }); } }, 'Ya tengo un héroe') : null));
   };
 
   const nameStep = () => {
+    view('name');
     const input = h('input#hero-name.name-input', { type: 'text', maxLength: 16, autocomplete: 'off', autocapitalize: 'words', spellcheck: false, 'aria-describedby': 'name-help', placeholder: 'Tu nombre' });
     const help = h('p#name-help.muted', 'Entre 3 y 16 letras. Así te ven en la caza y en el escaparate.');
     const roll = () => {
-      input.value = randomName(faction);
+      input.value = randomName(faction); rnd = true;
       help.textContent = 'Entre 3 y 16 letras. Así te ven en la caza y en el escaparate.'; help.classList.remove('err-text');
       input.focus();
     };
     const submit = (e) => {
       e.preventDefault();
       const r = game.newCharacter(input.value, faction, { terms: TERMS_VERSION }); // v17: clickwrap (texto debajo del botón)
+      emit('onb_name', { ok: r.ok, rnd, ...(!r.ok && { err: r.error }) });
       if (!r.ok) { help.textContent = errText(r.error); help.classList.add('err-text'); input.focus(); return; }
+      emit('onb_oath', { faction, ms: Date.now() - t0 });
       root.classList.add('out');
       setTimeout(() => { root.remove(); onDone(); toast(`¡Bienvenido, ${game.state().player?.name ?? input.value.trim()}!`, 'prize'); }, 250);
     };
