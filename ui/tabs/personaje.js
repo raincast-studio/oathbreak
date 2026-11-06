@@ -155,7 +155,11 @@ function bankView(ctx) {
     h('div.row', h('span.muted', 'Rápido:'), chips(p.gold)),
     h('div.row',
       h('button.btn.gold', { type: 'button', onclick: confirmDeposit }, 'Depositar…'),
-      h('button.btn.ghost', { type: 'button', onclick: (e) => ctx.act(e.currentTarget, (g) => g.withdraw(val()), (r) => `Retiraste ${num(r.withdrawn)}`) }, 'Retirar')));
+      h('button.btn.ghost', { type: 'button', onclick: (e) => {
+        // v17-qa: retirar más de lo que hay decía "Monto inválido."; ahora dice cuánto hay (como Depositar).
+        if (val() > ctx.S.player.bank) return toast(ctx.S.player.bank ? `No tenés tanto en el banco: tenés ${num(ctx.S.player.bank)}.` : 'No tenés oro en el banco.', 'err');
+        ctx.act(e.currentTarget, (g) => g.withdraw(val()), (r) => `Retiraste ${num(r.withdrawn)}`);
+      } }, 'Retirar')));
 }
 
 /* ---------- Temporada ---------- */
