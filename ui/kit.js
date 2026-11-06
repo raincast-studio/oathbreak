@@ -166,6 +166,14 @@ export function toast(text, kind = 'ok') {
    Una a la vez; Esc, fondo o "atrás" del navegador la cierran; el foco queda atrapado adentro. */
 let current = null;
 export const sheetOpen = () => !!current;
+// v17-qa: cerrar una hoja hace history.back() (asíncrono). Si en el mismo toque se navega a otra pestaña ("Cobrar misión" en
+// "Mientras no estabas"), ese back() volvía a la entrada vieja y su #pestaña devolvía al jugador adonde estaba.
+// afterSheetPop(fn): corre fn cuando ese back() terminó (o enseguida si no hay ninguno pendiente).
+let popWait = false;
+const afterPop = [];
+function popDone() { if (!popWait) return; popWait = false; for (const f of afterPop.splice(0)) f(); }
+export const sheetPopPending = () => popWait;
+export const afterSheetPop = (fn) => (popWait ? afterPop.push(fn) : fn());
 
 export function openSheet({ title, body, onClose }) {
   // v17: hoja desde hoja → se reutiliza la entrada del historial (antes el history.back() asíncrono cerraba la hoja nueva).
@@ -214,7 +222,8 @@ export function openSheet({ title, body, onClose }) {
   panel.addEventListener('pointercancel', up);
 
   current = { layer, panel, prevFocus, onClose, pushed: reuse };
-  if (!reuse) try { history.pushState({ sheet: 1 }, ''); current.pushed = true; } catch { /* el marco puede no permitirlo */ }
+  // v17-qa: si todavía no terminó el back() de una hoja anterior, la entrada nueva se agrega después (si no, ese back() se la llevaba).
+  if (!reuse) afterSheetPop(() => { if (current?.panel === panel) try { history.pushState({ sheet: 1 }, ''); current.pushed = true; } catch { /* el marco puede no permitirlo */ } });
   return panel;
 }
 
@@ -230,12 +239,15 @@ export function closeSheet(silent = false, fromPop = false) {
   layer.classList.remove('in');
   layer.classList.add('out');
   setTimeout(() => layer.remove(), reduced() ? 0 : 260);
-  if (pushed && !fromPop) { try { history.back(); } catch { /* nada */ } }
+  if (pushed && !fromPop) { try { history.back(); popWait = true; setTimeout(popDone, 500); } catch { /* nada */ } }
   if (!silent) { sfx('close'); onClose?.(); }
   prevFocus?.focus?.({ preventScroll: true });
 }
 
-addEventListener('popstate', () => { if (current) closeSheet(false, true); });
+addEventListener('popstate', () => {
+  if (popWait) { popDone(); return; } // el back() de closeSheet: no cierra una hoja nueva abierta mientras tanto
+  if (current) closeSheet(false, true);
+});
 addEventListener('keydown', (e) => {
   if (!current) return;
   if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }

@@ -3,7 +3,7 @@
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import { createGame } from '../src/game.js';
 import { memoryStorage } from '../src/core.js';
-import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
+import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, sheetPopPending, afterSheetPop, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
 import { sfx, cmdSfx } from './audio.js';
 import { errText } from './errors.js';
 import { showOnboarding, resetTutorial } from './onboarding.js';
@@ -230,6 +230,7 @@ function inboxSheet() {
 /* ---------- Navegación ---------- */
 // intent: sub-sección a abrir en la vista destino (p. ej. 'equipo' en Personaje, 'tienda' en Guarida).
 function go(tab, { focus = false, intent = null } = {}) {
+  if (sheetPopPending()) return afterSheetPop(() => go(tab, { focus, intent })); // v17-qa: desde una hoja, después de cerrarla
   if (!view(tab)) tab = 'base';
   const changed = S.tab !== tab;
   S.tab = tab; S.intent = intent;
@@ -249,7 +250,7 @@ function drawTab() {
   document.title = `${mod.title} · OATHBREAK`;
 }
 
-addEventListener('hashchange', () => go(location.hash.slice(1)));
+addEventListener('hashchange', () => { if (location.hash.slice(1) !== S.tab) go(location.hash.slice(1)); }); // v17-qa: sin redibujar si ya está ahí
 addEventListener('keydown', (e) => {
   if (sheetOpen() || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, select') || document.querySelector('.hunt-layer, .onb, .evo-layer')) return; // v15.1: tampoco con la evolución abierta
   const v = VIEWS.find(([, , , key]) => key === e.key.toLowerCase());
