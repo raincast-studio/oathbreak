@@ -289,6 +289,7 @@ function debugSheet() {
     h('div.row',
       h('button.btn.ghost', { type: 'button', onclick: () => { me().gold += 5000; game.save(); refresh(); toast('+5.000 oro'); } }, '+5.000 oro'),
       h('button.btn.ghost', { type: 'button', onclick: () => { me().energy = S.player.energyMax; game.save(); refresh(); toast('Energía llena'); } }, 'Llenar energía')),
+    h('button.btn.ghost.wide', { type: 'button', onclick: () => { closeSheet(true); import('./telemetry-panel.js').then((m) => m.telemetryPanel()); } }, 'Telemetría'), // v17 telemetría
     h('button.btn.crimson.wide', { type: 'button', onclick: () => {
       closeSheet(true); game.debug.reset(); resetTutorial(); $('#app').remove(); $('#toasts').remove(); boot();
     } }, 'Reiniciar desde el onboarding')) });
