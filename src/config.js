@@ -150,7 +150,11 @@ export const CFG = {
   // v14: +100 de oro y un objeto exclusivo (antes +300; sin servidor no se puede validar el código, así que vale poco).
   referral: { newGold: 100, item: 'farol_amistad', itemName: 'Farol de la amistad', codeRe: '^[A-HJ-NP-Z2-9]{6}$' },
 
-  faction: { minWins: 5, renown: 20 }, // premio semanal a la facción ganadora (miembros con ≥ 5 victorias)
+  faction: { minWins: 5, renown: 20, // premio semanal a la facción ganadora (miembros con ≥ 5 victorias)
+    // v17 fix-mundo (B9): el resto de cada facción también pelea. Cada duelo ganado por un bot suma a su facción con
+    // probabilidad share × (1 ± impulso); el impulso cambia por semana (±swing) y un poco por día (±daily), así la guerra
+    // no la gana siempre el bando del jugador: un activo inclina ~70% de las semanas, quien no caza no mueve nada.
+    bots: { share: 0.6, swing: 0.3, daily: 0.08 } },
 
   prey: { xpMult: 2, goldMissionMin: 30 }, // presa del día: un rival marcado que paga doble XP y un bono de oro
 

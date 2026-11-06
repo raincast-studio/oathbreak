@@ -426,6 +426,7 @@ export function settleShowcase(world, now) {
   const score = { hero: 0, villain: 0 };
   const real = { hero: 0, villain: 0 };
   for (const e of Object.values(world.entities)) if (e.repWeek?.week === prev && !isEco(e)) { score[e.faction] += e.repWeek.count; if (!e.isBot) real[e.faction]++; }
+  if (world.war?.week === prev) { score.hero += world.war.hero; score.villain += world.war.villain; } // v17 (B9): el resto de cada facción
   // v17: con Ecos, la guerra necesita jugadores reales de los dos lados.
   const war = !eco || (real.hero >= CFG.bots.eco.warMinReal && real.villain >= CFG.bots.eco.warMinReal);
   const winFaction = !war || score.hero === score.villain ? null : score.hero > score.villain ? 'hero' : 'villain';

@@ -282,7 +282,8 @@ export function pvp(world, att, def, now, opts = {}) {
   const lvlWin = gain(win, xpWin);
   const lvlLose = gain(lose, xpLose);
   win.rep += CFG.pvp.repWin;
-  if (!opts.duel) addWeeklyRep(win, now, CFG.pvp.repWin); // los duelos entre bots no deciden la guerra de facciones
+  if (!opts.duel) addWeeklyRep(win, now, CFG.pvp.repWin);
+  else if (!BL.isEco(win)) botWar(world, win.faction, now, seed); // v17 (B9): los duelos suman a la guerra (con impulso)
   win.record.w++; lose.record.l++;
   const trophy = pvpMilestone(win);
   let prey = null;
@@ -408,10 +409,30 @@ function addWeeklyRep(e, now, n) {
   e.repWeek.count += n;
 }
 
-export function factionScore(world, now) {
-  const w = weekKey(now), s = { hero: 0, villain: 0 };
+export function factionScore(world, now, w = weekKey(now)) {
+  const s = { hero: 0, villain: 0 };
   for (const e of Object.values(world.entities)) if (e.repWeek?.week === w && !BL.isEco(e)) s[e.faction] += e.repWeek.count; // v17: sin Ecos
+  if (world.war?.week === w) { s.hero += world.war.hero; s.villain += world.war.villain; } // v17 (B9): el resto de cada facción
   return s;
+}
+
+// v17 (B9): impulso de la guerra a favor de los héroes (−1..1 × swing + daily): de la semilla, la semana y el día.
+export function warMomentum(world, now) {
+  const F = CFG.faction.bots;
+  if (!F) return 0;
+  const r = (k, n) => (BL.hash32(world.seed ?? 0, k, n) / 4294967296) * 2 - 1;
+  return F.swing * r('war', weekKey(now)) + F.daily * r('warday', dayKey(now));
+}
+// Un duelo ganado por un bot suma 1 a su facción con probabilidad share × (1 ± impulso). Va en world.war (un solo
+// contador por semana: no crece el guardado). La moneda sale de la semilla del combate: determinista.
+function botWar(world, faction, now, seed) {
+  const F = CFG.faction.bots;
+  if (!F) return;
+  const pr = F.share * (1 + warMomentum(world, now) * (faction === 'hero' ? 1 : -1));
+  if ((Math.imul(seed ^ 0x27d4eb2d, 0x165667b1) >>> 0) / 4294967296 >= pr) return;
+  const w = weekKey(now);
+  if (world.war?.week !== w) world.war = { week: w, hero: 0, villain: 0 };
+  world.war[faction] += CFG.pvp.repWin;
 }
 
 /* ---------- Bots ---------- */

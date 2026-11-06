@@ -180,3 +180,24 @@ test('ranking: rivales y tu facción, siempre con tu fila (#N de M) y la meta ce
   assert.equal(top.me.pos, 1); assert.equal(top.me.goal, null); assert.ok(top.list[0].me);
   assert.equal(g.ranking('otro').error, 'alcance_invalido');
 });
+
+/* ---------- B9: la guerra de facciones no es trivial ---------- */
+test('B9: el resto de cada facción pelea: el día 1 no es 2–0 y, sin cazar, cada bando gana algunas semanas', () => {
+  const winners = { hero: 0, villain: 0, null: 0 };
+  for (const seed of [11, 22, 33, 44]) {
+    const { g, clock } = newGame(seed);
+    clock.advance(DAY); const d1 = g.state().faction;
+    assert.ok(d1.hero >= 20 && d1.villain >= 20, `día 1: ${JSON.stringify(d1)}`);
+    const seen = new Set();
+    for (let d = 1; d < 36; d++) { clock.advance(DAY); const lp = g.state().lastPrize; if (lp && !seen.has(lp.week)) { seen.add(lp.week); winners[lp.faction.winner]++; } }
+  }
+  assert.ok(winners.hero >= 4 && winners.villain >= 4, JSON.stringify(winners));
+  // con la marca Eco, los duelos de bots no cuentan
+  const saved = CFG.bots.label;
+  try {
+    CFG.bots.label = 'eco';
+    const { g, clock } = newGame(5);
+    clock.advance(DAY);
+    assert.deepEqual(g.state().faction, { hero: 0, villain: 0 });
+  } finally { CFG.bots.label = saved; }
+});

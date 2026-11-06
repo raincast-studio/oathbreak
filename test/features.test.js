@@ -202,12 +202,16 @@ test('los ataques de bots no consumen el cupo de ataques de jugadores reales', (
   void storage;
 });
 
-test('los duelos entre bots no suman a la guerra de facciones', () => {
+// v17 fix-mundo (B9): antes los duelos no sumaban y la guerra la decidía solo el jugador (2–0 el día 1). Ahora suman a
+// la facción del ganador con probabilidad bots.share × (1 ± impulso), en un contador por semana (sin repWeek por bot).
+test('los duelos entre bots suman a la guerra de facciones (con impulso), sin tocar la reputación semanal de cada bot', () => {
   const w = { seed: 3, seq: 0, entities: {} };
   const a = bot('a', 'hero'), d = bot('d', 'villain');
   w.entities = { a, d };
-  S.pvp(w, a, d, MON, { ignoreEnergy: true, duel: true });
-  assert.deepEqual(S.factionScore(w, MON), { hero: 0, villain: 0 });
+  for (let i = 0; i < 60; i++) S.pvp(w, a, d, MON, { ignoreEnergy: true, duel: true });
+  const sc = S.factionScore(w, MON), wins = a.record.w + d.record.w;
+  assert.ok(sc.hero + sc.villain > wins * 0.3 && sc.hero + sc.villain < wins * 0.9, JSON.stringify(sc));
+  assert.ok(!a.repWeek && !d.repWeek);
 });
 
 test('solicitudes de amistad: hay que aceptar; los bots contestan con demora; vencen a los 7 días', () => {
