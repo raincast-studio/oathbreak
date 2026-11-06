@@ -17,7 +17,7 @@ Pedimos lo mínimo para que el juego funcione:
 - **Identificador de cuenta**: un código anónimo que se crea al entrar por primera vez (cuenta de invitado).
 - **Email**, solo si decidís vincular tu héroe. Lo usamos para mandarte el código de acceso.
 - **Tu partida**: el nombre de tu héroe, bando, nivel, atributos, oro, objetos, guarida, misiones, amigos, regalos, visitas e informes de combate. El nombre y la guarida los ven otros jugadores.
-- **Telemetría de juego**: eventos como crear el personaje, empezar una misión, pelear, comprar con oro del juego o abrir la app, con su fecha. Sirve para entender el balance del juego. No incluye publicidad ni seguimiento fuera del juego.
+- **Telemetría de juego**: eventos como crear el personaje, empezar una misión, pelear, comprar con oro del juego o abrir la app, con su fecha, la versión del juego y la pantalla; también errores técnicos y tiempos de carga. Se asocian a un código aleatorio de este dispositivo y a tu identificador de cuenta, **nunca a tu nombre de héroe ni a tu email**. Sirve para entender el balance del juego y arreglar errores. No incluye publicidad ni seguimiento fuera del juego. La podés apagar cuando quieras en **Personaje → Ajustes → "Compartir datos de uso"**.
 - **Reportes y moderación**: los reportes que hacés (a quién, motivo, nota opcional) y los que recibís, y las decisiones del equipo.
 - **Aceptación**: la versión de estos textos que aceptaste y cuándo.
 - **Datos técnicos**: para funcionar, nuestros proveedores reciben tu dirección IP y datos del navegador y los registran por seguridad.
@@ -31,7 +31,7 @@ En tu dispositivo guardamos la partida, preferencias y la sesión en el almacena
 - Hacer funcionar el juego y guardar tu partida en la nube para no perderla y jugar desde otros dispositivos.
 - Mandarte el código de acceso por email (no mandamos publicidad).
 - Mantener el juego seguro y justo: moderar nombres, revisar reportes, detectar trampas y aplicar los Términos.
-- Mejorar el juego con estadísticas de uso.
+- Mejorar el juego con estadísticas de uso y reportes de errores (desactivables en Ajustes).
 
 No vendemos tus datos ni los usamos para publicidad personalizada.
 
@@ -55,6 +55,7 @@ Otros jugadores ven tu nombre de héroe, bando, nivel, guarida y lo que hacés e
 - **Cuenta vinculada**: mientras la tengas. Si la borrás, borramos tu partida y tu cuenta en ese momento; las copias de seguridad del proveedor se eliminan solas en hasta [30] días.
 - **Invitados sin email**: se borran a los **30 días sin actividad**.
 - **Reportes**: hasta 12 meses para poder resolverlos y detectar casos repetidos. Si borrás tu cuenta, los reportes que hiciste quedan sin tu identificador.
+- **Telemetría**: eventos hasta [400] días y errores técnicos hasta [90] días. Si borrás tu cuenta, se borran con ella. Los de invitados que se borran por inactividad quedan sin forma de asociarse a nadie.
 - **Registros técnicos** de los proveedores: según sus propios plazos.
 
 ## 6. Tus derechos y cómo ejercerlos
