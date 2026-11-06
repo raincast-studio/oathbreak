@@ -157,13 +157,14 @@ function lvlPop() {
   burst(b.left + b.width / 2, b.top + b.height / 2, { n: 12, cls: '.star', spread: 52 });
 }
 
+const NARROW = matchMedia('(max-width: 420px)'); // v17-qa: una sola consulta (antes una por segundo); mismo corte que las fichas en el CSS
 // Cuentas regresivas calculadas acá con el dato de la fachada; solo se vuelve a consultar al llegar a 0.
 function tickEnergy() {
   const p = S.player;
   if (!p) return;
   const full = p.energy >= p.energyMax;
   const left = p.nextEnergyMs - (performance.now() - S.at);
-  $('#en-sub').textContent = full ? 'LLENA' : matchMedia('(max-width: 380px)').matches ? `+1 ${clock(left)}` : `+1 EN ${clock(left)}`; // v15: corto a 360 px
+  $('#en-sub').textContent = full ? 'LLENA' : NARROW.matches ? `+1 ${clock(left)}` : `+1 EN ${clock(left)}`; // v15: corto a 360 px; v17-qa: también a 390 (se cortaba)
   $('#energy').setAttribute('aria-label', `Energía ${p.energy} de ${p.energyMax}${full ? ', llena' : `, más 1 en ${clock(left)}`}`);
   for (const el of document.querySelectorAll('[data-energy-cd]')) el.textContent = clock(left);
   let done = false;

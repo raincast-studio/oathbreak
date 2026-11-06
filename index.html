@@ -185,6 +185,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 
 /* ---------- Avisos ---------- */
 .toasts { position: fixed; z-index: 60; left: 0; right: 0; bottom: calc(var(--tab-h) + env(safe-area-inset-bottom, 0px) + 12px); /* 31/10: abajo, sin tapar títulos */ display: grid; justify-items: center; gap: 8px;
+  grid-template-columns: minmax(0, 1fr); /* v17-qa: sin esto la columna crecía con el texto y los avisos largos salían de la pantalla */
   padding-left: var(--gutter-l); padding-right: var(--gutter-r); pointer-events: none; }
 .toast { max-width: min(420px, 100%); width: max-content; min-width: 0; text-align: center; padding: 12px 18px; border-radius: var(--r); font-weight: 900; font-size: 15px;
   box-shadow: inset 0 -3px 0 rgba(0,0,0,.28), 0 8px 24px rgba(0,0,0,.45); animation: toast-in var(--t-slow) var(--ease-pop); }
@@ -706,6 +707,9 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 .event-banner .ico { color: var(--gold); }
 @media (max-width: 420px) { /* v17-qa: "RENOM." se cortaba como "REN…" a 390 px */
   .chip { padding: 5px 5px; gap: 4px; } .chip-ico { width: 20px; height: 20px; } .chip-txt small { letter-spacing: .02em; }
+}
+@media (max-width: 380px) { /* v17-qa: filas de rivales a 360 px: el nombre y "Nv · #puesto · reput." tenían 96 px y se cortaban */
+  .riv { padding: 10px; } .riv:has(> .more-btn) { gap: 6px; } .riv .avatar.lg { width: 48px; height: 48px; } .atk { min-width: 84px; }
 }
 @media (max-width: 380px) { /* 31/10: que el valor de las fichas (energía 12/12) no se corte a 360 px */
   .chip { padding: 5px 4px; gap: 3px; } .chip-ico { width: 18px; height: 18px; } .chip-ico .ico { width: 13px; height: 13px; }
