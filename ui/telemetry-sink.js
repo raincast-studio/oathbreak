@@ -42,10 +42,15 @@ const fnv = (s) => { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h 
 export const shortPath = (s) => String(s ?? '').replace(/(?:https?|blob|chrome-extension|moz-extension):\/\/[^/\s)]*/g, '')
   .replace(/\?[^\s):]*/g, '').replace(/#[^\s):]*/g, '').replace(/\/[^\s():]*?\/((?:ui|src)\/)/g, '$1').replace(/^\//, '');
 export const trimStack = (st) => String(st ?? '').split('\n').map((l) => scrubText(shortPath(l.trim()), 160)).filter(Boolean).slice(0, 6).join('\n');
+// Ruido que no es del juego: extensiones del navegador y el aviso benigno de ResizeObserver.
+const NOISE = /(?:chrome|moz|safari(?:-web)?)-extension:\/\/|ResizeObserver loop/;
+export const isNoise = ({ message, filename, stack } = {}) => NOISE.test(`${message ?? ''} ${filename ?? ''} ${String(stack ?? '').split('\n').slice(0, 2).join(' ')}`);
 export function errorInfo({ kind = 'error', message, filename, lineno, colno, stack } = {}) {
   const msg = scrubText(message || 'sin mensaje');
   const st = trimStack(stack);
-  const src = filename ? `${shortPath(filename)}:${lineno ?? 0}:${colno ?? 0}` : (st.split('\n').find((l) => /:\d+:\d+/.test(l))?.match(/([\w./-]+:\d+:\d+)/)?.[1] ?? '');
+  // Origen: archivo:línea:col del evento; si no viene (promesas), el primer cuadro del juego (ui/ o src/) o el primero.
+  const frames = st.split('\n').map((l) => l.match(/([\w./-]+:\d+:\d+)/)?.[1]).filter(Boolean);
+  const src = filename ? `${shortPath(filename)}:${lineno ?? 0}:${colno ?? 0}` : (frames.find((f) => /^\/?(?:ui|src)\//.test(f)) ?? frames[0] ?? '').replace(/^\//, '');
   const sig = fnv(`${kind}|${msg.replace(/\d+/g, '#')}|${src.replace(/:\d+$/, '')}`);
   return { sig, kind, msg, src: scrubText(src, 200), stack: st };
 }
@@ -109,8 +114,9 @@ export function createSink({ storage, transport = null, now = () => Date.now(), 
   // Eventos de la fachada: { ts, pid, type, ...props } (pid es local, 'p0': no se manda).
   const ingest = (e) => { if (e && typeof e.type === 'string') { const { ts, pid, type, ...props } = e; emit(type, props, Number.isFinite(ts) ? ts : now()); } };
 
+  // Primera vez de cada firma en la sesión: evento `error` (con pila). Repeticiones: solo se cuentan.
   function captureError(info) {
-    if (!enabled()) return null;
+    if (!enabled() || isNoise(info)) return null;
     const x = errorInfo(info);
     const hit = errs.get(x.sig);
     if (hit) { hit.n++; return null; }
