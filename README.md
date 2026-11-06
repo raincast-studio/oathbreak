@@ -23,6 +23,7 @@ Lógica, reglas y balance del juego, sin estética. JavaScript con ES modules y 
 | `src/objectives.js` | Objetivos diarios |
 | `src/lair.js` | Edificios, Taller, salas, grilla, prestigio, tiendas, visitas, racha, escaparate por ligas, guerra de facciones |
 | `src/social.js` | Amigos y regalos |
+| `src/bots.js` | v17: vida de los bots (horario humano, nicks, estilo de guarida, etapas de retiro, marca Eco). Sin estado guardado |
 | `src/systems.js` | Misiones, banco, PvP, `winChance`, presa del día, recompensa de defensa, jugadores, bots y emparejamiento |
 | `src/catalog.js` | Catálogo de decoración (más de 100 objetos, 7 sets) |
 | `src/migrate.js` | Migraciones del guardado, versión por versión |
