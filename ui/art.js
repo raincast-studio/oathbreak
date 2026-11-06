@@ -18,22 +18,24 @@ const mix = (a, b, t) => { const B = hx(b); return '#' + hx(a).map((v, i) => Mat
 const made = new Set();
 let pend = '', MIR = false; // MIR: se dibuja algo que después se espeja (la luz tiene que seguir viniendo de la izquierda)
 // Degradado de volumen para un color (#rrggbb): 'l' lineal (rectángulos), 'r' radial (curvas). Otros rellenos quedan igual.
-function vol(f, k) {
-  if (f === OL || !/^#[0-9a-f]{6}$/i.test(f)) return f;
+// Rendimiento: los detalles chicos (a < 400 u², perillas, gemas, patas finas) van planos: su volumen no se ve y cada forma
+// con degradado cuesta al pintar. El radial es simple (sin foco corrido), más barato que el cónico de dos puntos.
+function vol(f, k, a = 1e9) {
+  if (f === OL || a < 400 || !/^#[0-9a-f]{6}$/i.test(f)) return f;
   if (MIR && k === 'r') k = 'q';
   const id = k + f.slice(1).toLowerCase();
   if (!made.has(id)) {
     made.add(id);
     const st = (o, c) => `<stop offset="${o}" stop-color="${c}"/>`;
     pend += k === 'l' ? `<linearGradient id="${id}" x2="0" y2="1">${st(0, mix(f, LIT, 0.34))}${st(0.4, f)}${st(1, mix(f, DUSK, 0.4))}</linearGradient>`
-      : `<radialGradient id="${id}" cx="${k === 'q' ? 0.64 : 0.36}" cy=".3" r=".8" fx="${k === 'q' ? 0.7 : 0.3}" fy=".22">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
+      : `<radialGradient id="${id}" cx="${k === 'q' ? 0.66 : 0.34}" cy=".27" r=".82">${st(0, mix(f, LIT, 0.45))}${st(0.45, f)}${st(1, mix(f, DUSK, 0.44))}</radialGradient>`;
   }
   return `url(#${id})`;
 }
 const S = `stroke="${OL}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"`;
 // x2 va antes de S: con atributos repetidos el parser HTML se queda con el primero (antes los "stroke-width" finos se perdían).
-const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${x2} fill="${vol(f, 'l')}" ${S}/>`;
-const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
+const R = (x, y, w, h, f, rx = 0, x2 = '') => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${x2} fill="${vol(f, 'l', w * h)}" ${S}/>`;
+const E = (cx, cy, rx, ry, f, x2 = '') => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" ${x2} fill="${vol(f, 'r', rx * ry * 3.1)}" ${S}/>`;
 const C = (cx, cy, r, f, x2 = '') => E(cx, cy, r, r, f, x2);
 const P = (d, f, x2 = '') => `<path d="${d}" ${x2} fill="${vol(f, 'r')}" ${S}/>`;
 const L = (d, c = OL, w = 3) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
