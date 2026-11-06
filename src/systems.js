@@ -512,7 +512,7 @@ function botHour(world, b, now, rng, bots, weights) {
     // juega, con rachas (un nivel adelante o atrás cada pocos días) y pausas; si quedó muy atrás, se pone al día.
     const H = CFG.bots.human, warm = now - (p.createdAt ?? 0) < H.warmupH * HOUR;
     const day = warm ? null : BL.dayOf(world, b, s);
-    const lag = Math.max(1, p.level + b.offset + (day?.drift ?? 0)) - b.level;
+    const lag = Math.min(p.level + levelRange(p.level), Math.max(1, p.level + b.offset + (day?.drift ?? 0))) - b.level; // nunca fuera de rango
     if (lag > 0 && (warm || on || (!day.paused && lag >= H.catchUpLag))) addXp(b, CFG.xpNeed(b.level) - b.xp); // +1 nivel/h máx
   }
   if (behind) {
