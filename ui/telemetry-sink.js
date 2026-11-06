@@ -10,7 +10,8 @@ import * as cloud from './cloud.js';
 
 export const APP_VERSION = 'v17'; // igual al sufijo de VERSION en sw.js (lo controla test/telemetria.test.js)
 export const TM = {
-  dest: 'supabase', flushMs: 30_000, maxEvents: 300, maxBytes: 48 * 1024, batchMax: 50, batchBytes: 32 * 1024,
+  // v17: 'none' hasta aplicar supabase/migrations/20261107_telemetry.sql; después, 'supabase'.
+  dest: 'none', flushMs: 30_000, maxEvents: 300, maxBytes: 48 * 1024, batchMax: 50, batchBytes: 32 * 1024,
   backoffMin: 30_000, backoffMax: 30 * 60_000, errSigs: 10, recent: 20, propBytes: 1024,
 };
 export const KEYS = { q: 'oathbreak.tm.q', id: 'oathbreak.tm.id', off: 'oathbreak.tm.off', s: 'oathbreak.tm.s' };
