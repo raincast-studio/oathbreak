@@ -3,7 +3,7 @@
 // Personaje se abre desde el avatar. En escritorio, barra lateral con atajos por letra.
 import './telemetry-sink.js'; // v17 telemetría: primero, para capturar errores desde el arranque
 import { createGame } from '../src/game.js';
-import { memoryStorage } from '../src/core.js';
+import { memoryStorage, SAVE_KEY, TAB_KEY } from '../src/core.js';
 import { h, $, icon, num, compact, clock, uid, countUp, toast, openSheet, closeSheet, sheetOpen, sheetPopPending, afterSheetPop, reduced, avatar, stageOf, burst, flyCoins } from './kit.js';
 import { sfx, cmdSfx } from './audio.js';
 import { errText } from './errors.js';
@@ -29,7 +29,31 @@ let storage;
 try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); storage = localStorage; } catch { storage = memoryStorage(); }
 // 1b: la nube se reconcilia antes de crear la partida (máx. 6 s; sin conexión sigue con lo local).
 storage = await cloud.init(storage);
-const game = createGame({ storage });
+const game = createGame({ storage, onStale: () => tabBlocker() });
+// v17 (B1): una sola pestaña juega. La que abre el juego se anota como dueña del guardado y avisa a las demás, que
+// quedan en pausa (sin escribir) con "Jugar acá". Sin BroadcastChannel, igual se enteran por el evento storage.
+const tabs = globalThis.BroadcastChannel ? new BroadcastChannel('oathbreak') : null;
+tabs?.postMessage('open');
+if (tabs) tabs.onmessage = (e) => { if (e.data === 'open') game.yieldTab(); };
+addEventListener('storage', (e) => { if (e.key === TAB_KEY || e.key === SAVE_KEY) game.isStale(); });
+function tabBlocker() {
+  if (document.querySelector('.tab-block')) return;
+  const app = $('#app');
+  const el = h('div.blocker.tab-block', { role: 'alertdialog', 'aria-modal': 'true', 'aria-labelledby': 'tab-block-t' },
+    h('div.card.stack',
+      h('h1.display#tab-block-t', 'El juego está abierto en otra pestaña'),
+      h('p', 'Para no perder progreso, se juega en una sola pestaña a la vez. Si seguís acá, la otra queda en pausa.'),
+      h('button.btn.gold.wide', { type: 'button', onclick: () => {
+        const r = game.reload();
+        tabs?.postMessage('open');
+        el.remove(); if (app) app.inert = false;
+        if (!r.hasCharacter || !app) location.reload(); else { const k = location.hash.slice(1); S.tab = null; go(view(k) ? k : 'base'); }
+      } }, 'Jugar acá')));
+  if (sheetOpen()) closeSheet(true);
+  document.body.append(el);
+  if (app) app.inert = true;
+  el.querySelector('button').focus({ preventScroll: true });
+}
 
 const S = { player: null, unread: 0, at: 0, tab: 'base', badges: {}, intent: null };
 

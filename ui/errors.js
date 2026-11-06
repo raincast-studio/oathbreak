@@ -4,7 +4,7 @@ export const ERR = {
   sin_energia: 'Sin energía. Se recupera con el tiempo (la Enfermería la acelera).', novato_protegido: 'Jugador novato: no se lo puede atacar hasta el nivel 5.',
   objetivos_incompletos: 'Completá los 3 objetivos primero.', objetivo_incompleto: 'Ese objetivo todavía no está completo.', ya_cobrado: 'Ya lo cobraste.',
   renombre_insuficiente: 'No te alcanza el renombre.', no_reciclable: 'Los objetos exclusivos no se reciclan.', posicion_invalida: 'Ese objeto no se puede poner ahí.',
-  guardado_de_version_futura: 'Hay un guardado de una versión más nueva.', guardado_ilegible: 'Hay un guardado ilegible.', json_invalido: 'El texto no es un JSON válido.',
+  guardado_de_version_futura: 'Hay un guardado de una versión más nueva.', guardado_ilegible: 'Hay un guardado ilegible.', otra_pestana: 'El juego está abierto en otra pestaña.', json_invalido: 'El texto no es un JSON válido.',
   guardado_invalido: 'Ese texto no es un guardado de Oathbreak.', cooldown_objetivo: 'Ya atacaste a ese objetivo hace menos de 1 h.', objetivo_protegido: 'Ese objetivo ya recibió 5 ataques hoy.',
   sin_objetivos: 'No hay objetivos disponibles en tu rango ahora.', nivel_insuficiente: 'Te falta nivel para eso.', ya_equipado: 'Ya tenés ese tier o uno mejor.',
   nombre_corto: 'El nombre necesita al menos 3 letras.', monto_invalido: 'Monto inválido.', fuera_de_rango: 'Fuera de tu rango de nivel.',

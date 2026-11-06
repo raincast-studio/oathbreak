@@ -46,6 +46,10 @@ export function memoryStorage() {
 
 export const SAVE_KEY = 'oathbreak.save';
 export const BACKUP_KEY = 'oathbreak.save.backup';
+// v17 (B1): pestaña dueña del guardado. Cada pestaña que abre el juego se anota acá; una pestaña cuyo token ya no está
+// anotado quedó desactualizada y no puede escribir (si no, pisaba el progreso de la otra y devolvía energía gastada).
+export const TAB_KEY = 'oathbreak.save.tab';
+export const tabToken = () => `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 10)}`;
 
 export function saveWorld(storage, world) {
   storage.setItem(SAVE_KEY, JSON.stringify(world));

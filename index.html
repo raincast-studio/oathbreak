@@ -692,6 +692,8 @@ button.qcard:active { transform: scale(.98); }
 .blocker { min-height: 100%; display: grid; place-items: center; padding-block: 24px; padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
 .blocker .card { max-width: 420px; }
 .blocker h1 { font-size: 28px; }
+/* v17 (B1): otra pestaña tomó el guardado */
+.tab-block { position: fixed; inset: 0; z-index: 80; background: color-mix(in srgb, var(--bg) 94%, transparent); min-height: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; }

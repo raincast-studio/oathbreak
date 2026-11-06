@@ -76,3 +76,34 @@ test('B2: el bono de regreso llega recién a los 3 días, una vez, y el mundo es
   assert.equal(ids(c), ids(d));
   assert.ok(c.g.targets().list.length >= CFG.bots.floor.targets);
 });
+
+/* ---------- B1: dos pestañas no se pisan el guardado ---------- */
+test('B1: con el juego abierto en dos pestañas, la desactualizada no pisa el progreso ni recupera energía', () => {
+  const storage = memoryStorage(), clock = createClock(() => MON);
+  let staleA = 0;
+  const A = createGame({ storage, clock, seed: 3, onStale: () => staleA++ });
+  A.newCharacter('Tester', 'hero');
+  const e0 = A.state().player.energy;
+  // se abre una segunda pestaña: lee el guardado y pasa a ser la dueña
+  const B = createGame({ storage, clock: createClock(() => MON) });
+  const T = B.targets().list.filter((t) => !t.block);
+  assert.ok(B.attack(T[0].id).ok && B.attack(T[1].id).ok);
+  const saved = JSON.parse(storage.getItem('oathbreak.save'));
+  assert.equal(saved.entities.p0.energy, e0 - 2 * CFG.energy.pvpCost);
+  // la pestaña vieja (con la energía de antes) intenta jugar y guardar: se rechaza sin tocar el guardado
+  assert.equal(A.isStale(), true);
+  assert.equal(staleA, 1);
+  assert.equal(A.attack(T[2].id).error, 'otra_pestana');
+  assert.equal(A.state().error, 'otra_pestana');
+  A.save(); A.debug.toNext('day'); // tampoco escribe (y "Jugar acá" vuelve al reloj del guardado)
+  assert.equal(JSON.parse(storage.getItem('oathbreak.save')).entities.p0.energy, e0 - 2 * CFG.energy.pvpCost);
+  // "Jugar acá" en la vieja: relee el guardado (con el progreso de B) y la otra queda desactualizada
+  assert.ok(A.reload().ok);
+  assert.equal(A.state().player.energy, e0 - 2 * CFG.energy.pvpCost);
+  assert.equal(B.isStale(), true);
+  assert.equal(B.attack(T[3].id).error, 'otra_pestana');
+  assert.ok(A.attack(T[3].id).ok);
+  assert.equal(JSON.parse(storage.getItem('oathbreak.save')).entities.p0.energy, e0 - 3 * CFG.energy.pvpCost);
+  // aviso de otra pestaña por BroadcastChannel
+  assert.ok(A.yieldTab().ok); assert.equal(A.claimMission().error, 'otra_pestana');
+});

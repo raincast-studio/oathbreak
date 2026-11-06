@@ -1,7 +1,7 @@
 // Fachada única para cualquier cliente (debug HTML hoy, UI Chibi mañana, servidor en E6).
 // Toda entrada externa se valida acá. Consultas (query) no escriben el guardado; comandos (command) sí.
 import { CFG, CONTRACTS, HOUR, DAY } from './config.js';
-import { createClock, memoryStorage, readSave, saveWorld, clearWorld, backupSave, mulberry32, deriveSeed, dayKey, weekKey } from './core.js';
+import { createClock, memoryStorage, readSave, saveWorld, clearWorld, backupSave, mulberry32, deriveSeed, dayKey, weekKey, TAB_KEY, tabToken } from './core.js';
 import * as C from './character.js';
 import * as S from './systems.js';
 import * as Lr from './lair.js';
@@ -29,22 +29,39 @@ const clone = (x) => (x === undefined ? x : structuredClone(x));
 
 // playerId: jugador al que representa esta fachada (en el navegador, el local; en E6, el autenticado).
 // autosave: false solo para simulaciones masivas (el guardado se hace a mano con save()).
-export function createGame({ storage = memoryStorage(), clock = createClock(), seed, playerId, onEvent, autosave = true } = {}) {
+// onStale: la interfaz se entera de que otra pestaña tomó el guardado (B1).
+export function createGame({ storage = memoryStorage(), clock = createClock(), seed, playerId, onEvent, autosave = true, onStale } = {}) {
   if (onEvent) setTelemetrySink(onEvent);
   let world = null;
   let saveIssue = null; // 'future' | 'corrupt' | null — bloquea crear personaje hasta resolverlo
-  const s = readSave(storage);
-  if (s.status === 'ok') world = s.world;
-  else if (s.status === 'old') {
-    try { world = migrate(s.world, CFG.saveVersion); } catch { saveIssue = 'corrupt'; }
-  } else if (s.status === 'future' || s.status === 'corrupt') saveIssue = s.status;
-  if (world?.clockOffset) clock.offset = world.clockOffset;
-  if (world) S.compactWorld(world, clock.now());
+  // v17 (B1): esta pestaña se anota como dueña del guardado al cargarlo; si otra se anota después, esta queda
+  // desactualizada: no escribe más (rechaza la escritura vieja) hasta que el jugador elija "Jugar acá" (reload).
+  let tab = null, stale = false;
+  const peek = () => { try { return storage.getItem(TAB_KEY); } catch { return tab; } };
+  const claim = () => { tab = tabToken(); stale = false; try { storage.setItem(TAB_KEY, tab); } catch { /* sin storage: una sola pestaña */ } };
+  const markStale = () => { if (stale) return; stale = true; try { onStale?.(); } catch { /* la interfaz decide */ } };
+  function load(initial) {
+    world = null; saveIssue = null;
+    const s = readSave(storage);
+    if (s.status === 'ok') world = s.world;
+    else if (s.status === 'old') {
+      try { world = migrate(s.world, CFG.saveVersion); } catch { saveIssue = 'corrupt'; }
+    } else if (s.status === 'future' || s.status === 'corrupt') saveIssue = s.status;
+    if (world?.clockOffset || !initial) clock.offset = world?.clockOffset ?? 0;
+    if (world) S.compactWorld(world, clock.now());
+    claim();
+  }
+  load(true);
 
   const pid = () => playerId ?? world?.playerId;
   const P = () => (world && hasKey(world.entities, pid()) ? world.entities[pid()] : null);
   const ent = (id) => (world && hasKey(world.entities, id) ? world.entities[id] : null);
-  const persist = (force = false) => { if (!autosave && !force) return; world.clockOffset = clock.offset; saveWorld(storage, world); };
+  const persist = (force = false) => {
+    if (!autosave && !force) return;
+    if (stale || peek() !== tab) { markStale(); return; } // B1: escritura de una pestaña vieja: se rechaza
+    world.clockOffset = clock.offset; saveWorld(storage, world);
+  };
+  const isStale = () => { if (!stale && peek() !== tab) markStale(); return stale; };
 
   // Materializa el paso del tiempo (horas de bots, cierre semanal, energía, sesión). Devuelve true si hay algo que guardar.
   function advance(now) {
@@ -80,6 +97,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
   // Consulta: materializa el paso del tiempo y lee. Las funciones de lectura son puras (test: robustness
   // "las consultas no modifican el mundo") y el resultado es una copia: nunca expone referencias vivas.
   const query = (fn) => {
+    if (isStale()) return err('otra_pestana');
     if (!world || !P()) return err('sin_personaje');
     const now = clock.now();
     if (advance(now)) persist();
@@ -88,6 +106,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
   // v17: src = categoría económica del comando en curso (la pone econWrap); el cambio de patrimonio sale como `gold`.
   let src = null;
   const command = (fn) => {
+    if (isStale()) return err('otra_pestana');
     if (!world || !P()) return err('sin_personaje');
     const now = clock.now();
     advance(now);
@@ -101,11 +120,17 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
   const api = {
     hasCharacter: () => !!P(),
     saveIssue: () => saveIssue,
+    // v17 (B1): ¿otra pestaña tomó el guardado? reload(): "Jugar acá" (relee el guardado y esta pestaña pasa a ser la
+    // dueña; la otra queda desactualizada). yieldTab(): otra pestaña avisó que abrió el juego (BroadcastChannel).
+    isStale,
+    reload: () => { load(); return { ok: true, hasCharacter: !!P() }; },
+    yieldTab: () => { markStale(); return { ok: true }; },
     save: () => { if (world) persist(true); return { ok: !!world }; },
     // v15.1: ponerse al día con las horas de bots de a tramos (la interfaz lo llama al abrir y cede el hilo entre
     // tramos, para no congelar la pantalla al volver tras días afuera). Mismo mundo que hacerlo todo de una vez.
     // Guarda una sola vez, al terminar. pending: horas que faltan.
     catchUp(maxHours = 6) {
+      if (isStale()) return err('otra_pestana');
       if (!world || !P()) return err('sin_personaje');
       if (!isPosInt(maxHours)) return err('horas_invalidas');
       const now = clock.now();
@@ -126,6 +151,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     // original sin volver a ejecutarlo. Uso: game.withOp('uuid', () => game.buyStat('fue')).
     withOp(opId, thunk) {
       if (typeof opId !== 'string' || !opId || opId.length > 64) return err('op_invalida');
+      if (isStale()) return err('otra_pestana');
       if (!world || !P()) return err('sin_personaje');
       world.ops ??= [];
       const hit = world.ops.find((o) => o.id === opId && o.pid === pid());
@@ -139,6 +165,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
 
     // v17: el nombre pasa por la moderación (src/moderation.js). terms: versión de los Términos aceptada (clickwrap).
     newCharacter(name, faction, { terms } = {}) {
+      if (isStale()) return err('otra_pestana');
       if (saveIssue) return err(saveIssue === 'future' ? 'guardado_de_version_futura' : 'guardado_ilegible');
       if (faction !== 'hero' && faction !== 'villain') return err('faccion_invalida');
       const vn = Mod.validateName(name);
@@ -508,7 +535,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
   }
   return api;
 }
-const NO_ECON = new Set(['hasCharacter', 'saveIssue', 'save', 'catchUp', 'withOp', 'newCharacter', 'exportData']);
+const NO_ECON = new Set(['hasCharacter', 'saveIssue', 'save', 'catchUp', 'withOp', 'newCharacter', 'exportData', 'isStale', 'reload', 'yieldTab']);
 const ECON_SRC = {
   attack: 'pvp', hunt: 'pvp', buyStat: 'stat', autoSpend: 'stat', buyGear: 'gear', startMission: 'mission', cancelMission: 'mission',
   claimMission: 'mission', claimDaily: 'daily', deposit: 'bank', withdraw: 'bank', upgradeBuilding: 'building', claimWorkshop: 'workshop',
