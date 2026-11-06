@@ -464,13 +464,25 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
           band: S.powerBand(p, e), block: S.attackBlock(p, e, now, { ignoreEnergy: true }) };
       }),
     })),
-    // Ranking de la facción rival por reputación (los fuera de rango figuran, pero bloqueados).
-    ranking: () => query((p, now) => ({
-      ok: true,
-      list: Object.values(world.entities).filter((e) => e.faction !== p.faction && !BL.unlisted(e, now)).sort((a, b) => b.rep - a.rep || b.level - a.level).slice(0, 20) // v17: sin Ecos ni bots que se retiran
-        .map((e, i) => ({ pos: i + 1, id: e.id, name: e.name, level: e.level, rep: e.rep, loot: S.lootEstimate(e),
-          band: S.inRange(p, e) ? S.powerBand(p, e) : null, block: S.attackBlock(p, e, now, { ignoreEnergy: true }) })),
-    })),
+    // Ranking por reputación. scope 'rival' (default): la facción rival (los fuera de rango figuran, pero bloqueados);
+    // 'mine' (v17): tu facción. Siempre trae tu fila (me: puesto entre los de tu facción, de cuántos, y la meta cercana:
+    // cuánta reputación te falta para el #20 o, ya adentro, para el puesto de arriba).
+    ranking: (scope = 'rival') => query((p, now) => {
+      if (scope !== 'rival' && scope !== 'mine') return err('alcance_invalido');
+      const TOP = 20;
+      const rows = (fac) => Object.values(world.entities).filter((e) => e.faction === fac && (e.id === p.id || !BL.unlisted(e, now))) // v17: sin Ecos ni bots que se retiran
+        .sort((a, b) => b.rep - a.rep || b.level - a.level || (a.id === p.id) - (b.id === p.id));
+      const mine = rows(p.faction), all = scope === 'mine' ? mine : rows(p.faction === 'hero' ? 'villain' : 'hero');
+      const pos = mine.findIndex((e) => e.id === p.id) + 1;
+      const above = pos > TOP ? mine[TOP - 1] : pos > 1 ? mine[pos - 2] : null;
+      const goal = above && { pos: pos > TOP ? TOP : pos - 1, name: above.name, gap: Math.max(1, above.rep - p.rep + (above.level >= p.level ? 1 : 0)) };
+      return {
+        ok: true, scope,
+        list: all.slice(0, TOP).map((e, i) => ({ pos: i + 1, id: e.id, name: e.name, level: e.level, rep: e.rep, faction: e.faction, me: e.id === p.id, ...ecoOf(e),
+          ...(e.faction !== p.faction && { loot: S.lootEstimate(e), band: S.inRange(p, e) ? S.powerBand(p, e) : null, block: S.attackBlock(p, e, now, { ignoreEnergy: true }) }) })),
+        me: { pos, of: mine.length, rep: p.rep, level: p.level, goal },
+      };
+    }),
 
     // Informes
     inbox: () => query((p) => ({ ok: true, list: p.inbox.map(({ report, role, read }) => ({ report, role, read })) })),

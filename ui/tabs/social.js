@@ -192,6 +192,10 @@ function showcaseView(ctx) {
         segmented(CFG.lair.leagues.map((l) => [l.id, l.name]), UI.league, (k) => { UI.league = k; ctx.refresh(); }),
         segmented([['hero', 'Héroes'], ['villain', 'Villanos']], fac, (k) => { UI.faction = k; ctx.refresh(); })),
       h('p.muted.hint', `Puntaje = prestigio + ${CFG.lair.visit.applauseWeight} × aplausos únicos de la semana. Los lunes el top ${winnersTop} de cada liga y facción gana ${CFG.lair.visit.prize.renown} de renombre y un marco de honor. Tu liga: ${LEAGUE[myLeague]}.`),
+      // v17 fix-mundo: tu puesto y cuánto te falta para el podio (premio del lunes), aunque estés lejos.
+      meIdx >= 0 ? h('div.rank-me', h('strong.tnum', `Vos: #${meIdx + 1} de ${list.length} en ${LEAGUE[UI.league]}`),
+        h('span.muted.tnum', meIdx < winnersTop ? '¡Estás en el podio! Si seguís así, el lunes cobrás el premio.'
+          : `A ${num(list[winnersTop - 1].score - list[meIdx].score + 1)} puntos del #${winnersTop}: decorá, armá sets y juntá aplausos.`)) : null,
       h('ol.ranking', top.map(row)),
       meIdx >= 15 ? h('ol.ranking', { start: meIdx + 1 }, row(list[meIdx], meIdx)) : null));
 }

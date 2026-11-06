@@ -41,10 +41,24 @@ export function render(ctx) {
       ? h('ul.riv-list', revenge.map((t) => row(t, t.stolen ? `te robó ${num(t.stolen)} oro · ${ago(S.now - t.ts)}` : `te atacó ${ago(S.now - t.ts)}`, 'VENGAR')))
       : h('p.empty', 'Nadie te atacó en las últimas 24 h. Cuando alguien lo haga, vas a poder devolverle el golpe una vez, aunque esté fuera de tu rango.');
   } else if (UI.sub === 'ranking') {
-    const rk = game.ranking();
+    // v17 fix-mundo: rivales o tu facción, siempre con tu fila fija ("#37 de 120 héroes") y la meta cercana.
+    const scope = UI.rk ?? 'rival', rk = game.ranking(scope);
+    const FN = { hero: 'Héroes', villain: 'Villanos' }, FS = { hero: 'héroes', villain: 'villanos' };
+    const me = rk.ok ? rk.me : null;
+    const mineRow = (t) => h(`li.rank${t.me ? '.me' : ''}`, h('span.pos.tnum', `${t.pos}`), avatar(t.faction, t.name, '', t.level),
+      h('div.t-info', h('strong', t.me ? `${t.name} (vos)` : t.name), h('span.muted.tnum', `Nv ${t.level}`)), h('span.score.tnum', num(t.rep)));
+    const meCard = me && h('div.rank-me',
+      h('strong.tnum', `Vos: #${me.pos} de ${me.of} ${FS[p.faction]}`),
+      h('span.muted.tnum', me.goal ? `A ${num(me.goal.gap)} de reputación del #${me.goal.pos}${me.goal.pos < 20 ? ` (${me.goal.name})` : ''}. Cada caza ganada suma 1.` : '¡Sos el #1 de tu facción!'));
     // v17-qa: el bando va en el título de la lista; en la fila, "#1 Villanos · 1 reput." se cortaba justo en la reputación.
-    body = h('div.stack', h('p.muted.list-cap', `Ranking de ${foeF === 'hero' ? 'Héroes' : 'Villanos'} por reputación`),
-      h('ul.riv-list', (rk.ok ? rk.list : []).map((t) => row(t, `#${t.pos} · ${num(t.rep)} reput.`))));
+    body = h('div.stack',
+      segmented([['rival', FN[foeF]], ['mine', `Tu facción`]], scope, (k) => { UI.rk = k; ctx.refresh(); }),
+      meCard,
+      h('p.muted.list-cap', `Ranking de ${FN[scope === 'mine' ? p.faction : foeF]} por reputación`),
+      scope === 'mine'
+        ? h('div.stack', h('ol.ranking', (rk.ok ? rk.list : []).map(mineRow)),
+          me && me.pos > 20 ? h('ol.ranking', { start: me.pos }, mineRow({ pos: me.pos, name: p.name, level: p.level, rep: me.rep, faction: p.faction, me: true })) : null)
+        : h('ul.riv-list', (rk.ok ? rk.list : []).map((t) => row(t, `#${t.pos} · ${num(t.rep)} reput.`))));
   } else {
     const tg = game.targets();
     const list = tg.ok ? tg.list : [];

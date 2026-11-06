@@ -159,3 +159,24 @@ test('pase: quien entra a mitad de temporada termina más arriba con catch-up (a
   } finally { CFG.season.catchUp = cu; }
   assert.ok(end[false] <= 17 && end[true] >= end[false] + 6, `sin ${end[false]} · con ${end[true]}`);
 });
+
+/* ---------- Ranking con tu fila y tu facción ---------- */
+test('ranking: rivales y tu facción, siempre con tu fila (#N de M) y la meta cercana', () => {
+  const { g, w } = newGame(6);
+  const heroes = Object.values(w.entities).filter((e) => e.isBot && e.faction === 'hero');
+  heroes.forEach((b, i) => { b.rep = 100 + i * 10; });
+  const p = w.entities.p0; p.rep = 5;
+  const r = g.ranking();
+  assert.ok(r.ok && r.list.every((t) => t.faction === 'villain' && !t.me && 'block' in t));
+  assert.equal(r.me.pos, heroes.length + 1); assert.equal(r.me.of, heroes.length + 1);
+  const m = g.ranking('mine');
+  assert.equal(m.list.length, Math.min(20, heroes.length + 1));
+  assert.equal(m.list[0].rep, 100 + (heroes.length - 1) * 10);
+  // fuera del top 20 la meta es el #20; adentro, el de arriba
+  if (m.me.pos > 20) assert.deepEqual([m.me.goal.pos, m.me.goal.gap], [20, m.list[19].rep - p.rep + 1]);
+  else assert.equal(m.me.goal.pos, m.me.pos - 1);
+  p.rep = 1e6;
+  const top = g.ranking('mine');
+  assert.equal(top.me.pos, 1); assert.equal(top.me.goal, null); assert.ok(top.list[0].me);
+  assert.equal(g.ranking('otro').error, 'alcance_invalido');
+});
