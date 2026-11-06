@@ -30,15 +30,17 @@ const clone = (x) => (x === undefined ? x : structuredClone(x));
 // playerId: jugador al que representa esta fachada (en el navegador, el local; en E6, el autenticado).
 // autosave: false solo para simulaciones masivas (el guardado se hace a mano con save()).
 // onStale: la interfaz se entera de que otra pestaña tomó el guardado (B1).
-export function createGame({ storage = memoryStorage(), clock = createClock(), seed, playerId, onEvent, autosave = true, onStale } = {}) {
+// tabLock: control de pestañas (por defecto, solo para el jugador local del navegador; una fachada con playerId explícito
+// —pruebas multijugador, servidor de E6— no se anota).
+export function createGame({ storage = memoryStorage(), clock = createClock(), seed, playerId, onEvent, autosave = true, onStale, tabLock = playerId == null } = {}) {
   if (onEvent) setTelemetrySink(onEvent);
   let world = null;
   let saveIssue = null; // 'future' | 'corrupt' | null — bloquea crear personaje hasta resolverlo
   // v17 (B1): esta pestaña se anota como dueña del guardado al cargarlo; si otra se anota después, esta queda
   // desactualizada: no escribe más (rechaza la escritura vieja) hasta que el jugador elija "Jugar acá" (reload).
   let tab = null, stale = false;
-  const peek = () => { try { return storage.getItem(TAB_KEY); } catch { return tab; } };
-  const claim = () => { tab = tabToken(); stale = false; try { storage.setItem(TAB_KEY, tab); } catch { /* sin storage: una sola pestaña */ } };
+  const peek = () => { if (!tabLock) return tab; try { return storage.getItem(TAB_KEY); } catch { return tab; } };
+  const claim = () => { tab = tabToken(); stale = false; if (tabLock) try { storage.setItem(TAB_KEY, tab); } catch { /* sin storage: una sola pestaña */ } };
   const markStale = () => { if (stale) return; stale = true; try { onStale?.(); } catch { /* la interfaz decide */ } };
   function load(initial) {
     world = null; saveIssue = null;
