@@ -199,7 +199,7 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 /* ---------- Caza ---------- */
 .tnum { font-variant-numeric: tabular-nums; }
 .btn.big { min-height: 60px; font-size: 18px; width: 100%; }
-.btn.small { min-height: 44px; padding: 0 16px; font-size: 15px; }
+.btn.small { min-height: 44px; min-width: 44px; padding: 0 16px; font-size: 15px; } /* v17-qa: "Ir" medía 43 px de ancho */
 .btn > span { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .cost { display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 10px; margin-left: 6px; border-radius: 999px; background: rgba(0,0,0,.22); font-size: 14px; }
 .hunt-cta { display: grid; gap: 16px; padding: 20px; border-radius: var(--r-lg); border: 2px solid var(--line);
@@ -509,7 +509,11 @@ main { outline: none; min-height: 60vh; padding-bottom: calc(var(--tab-h) + env(
 .safety-links .link-btn, .rr-report { font-size: 14px; font-weight: 800; }
 .rr-report { justify-self: center; margin-top: -8px; }
 .riv:has(> .more-btn) { grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; }
-.more-btn { width: 32px; min-height: 48px; padding: 0; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 20px; font-weight: 900; line-height: 1; display: grid; place-items: center; }
+.more-btn { width: 32px; min-height: 48px; padding: 0; border: 0; border-radius: 12px; background: var(--surface-2); color: var(--muted); font-size: 20px; font-weight: 900; line-height: 1; display: grid; place-items: center; position: relative; }
+/* v17-qa: área táctil de 44 px sin ensanchar la fila (el gap es de 8 px); en la Presa del día la nota ("doble XP y bono de oro") en dos líneas en vez de "doble…". */
+.more-btn::before { content: ''; position: absolute; inset: -2px -6px; }
+.prey .riv-info .muted { white-space: normal; }
+@media (max-width: 480px) { .prey { padding: 14px 14px 16px; } }
 .rr-list { display: grid; gap: 8px; }
 .rr-opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 2px solid var(--line); background: var(--surface); cursor: pointer; }
 .rr-opt:has(input:checked) { border-color: var(--crimson); background: color-mix(in srgb, var(--crimson) 14%, var(--surface)); }
@@ -603,7 +607,7 @@ button.qcard:active { transform: scale(.98); }
 .atk small { font-family: var(--f-ui); font-size: 11px; font-weight: 900; opacity: .9; }
 .atk:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 2px 0 var(--crimson-sh); }
 .atk:disabled { background: #2E2450; box-shadow: none; color: #8F86B0; cursor: not-allowed; }
-.prey .riv { border-color: var(--violet); background: var(--surface-2); }
+.prey .riv { border: 0; background: none; padding: 0; } /* v17-qa: la sección ya es la tarjeta; sin el doble marco el nombre y la nota tienen lugar */
 .busy { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--gold) 12%, var(--surface)); border: 2px solid var(--gold-sh); }
 .busy-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--gold); color: var(--ink-dark); }
 .busy .muted { font-size: 13px; }
@@ -700,6 +704,9 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
 @media (prefers-reduced-motion: reduce) { .evo-old { display: none; } .evo-new, .evo-rays { animation: none; } }
 .event-banner { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r); background: color-mix(in srgb, var(--violet) 22%, var(--surface)); border: 2px solid var(--violet); font-size: 14px; }
 .event-banner .ico { color: var(--gold); }
+@media (max-width: 420px) { /* v17-qa: "RENOM." se cortaba como "REN…" a 390 px */
+  .chip { padding: 5px 5px; gap: 4px; } .chip-ico { width: 20px; height: 20px; } .chip-txt small { letter-spacing: .02em; }
+}
 @media (max-width: 380px) { /* 31/10: que el valor de las fichas (energía 12/12) no se corte a 360 px */
   .chip { padding: 5px 4px; gap: 3px; } .chip-ico { width: 18px; height: 18px; } .chip-ico .ico { width: 13px; height: 13px; }
   .chip-txt strong { font-size: 13px; } .chip-txt small { font-size: 10px; letter-spacing: .02em; }
