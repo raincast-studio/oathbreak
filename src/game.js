@@ -10,7 +10,7 @@ import { energyMax, energyRegenMin, grantItem } from './effects.js';
 import { ITEM } from './catalog.js';
 import { migrate } from './migrate.js';
 import { hasKey, isInt, isPosInt } from './economy.js';
-import { track, touchSession, setTelemetrySink } from './telemetry.js';
+import { track, touchSession, setTelemetrySink, wealth, trackGold } from './telemetry.js';
 import * as So from './social.js';
 import * as Se from './season.js';
 import * as Mod from './moderation.js';
@@ -48,8 +48,10 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
 
   // Materializa el paso del tiempo (horas de bots, cierre semanal, energía, sesión). Devuelve true si hay algo que guardar.
   function advance(now) {
+    const w0 = wealth(P());
     const ticked = S.tickBots(world, now) > 0;
     const prize = Lr.settleShowcase(world, now);
+    trackGold(world, P(), 'world', w0, now); // v17: lo que pasó mientras no estabas (asaltos de bots, premios)
     C.sync(P(), now);
     const before = world.events?.length ?? 0;
     touchSession(world, P(), now);
@@ -63,16 +65,20 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     if (advance(now)) persist();
     return clone(fn(P(), now));
   };
+  // v17: src = categoría económica del comando en curso (la pone econWrap); el cambio de patrimonio sale como `gold`.
+  let src = null;
   const command = (fn) => {
     if (!world || !P()) return err('sin_personaje');
     const now = clock.now();
     advance(now);
+    const w0 = wealth(P());
     const r = fn(P(), now);
+    trackGold(world, P(), src ?? 'otro', w0, now);
     persist();
     return clone(r);
   };
 
-  return {
+  const api = {
     hasCharacter: () => !!P(),
     saveIssue: () => saveIssue,
     save: () => { if (world) persist(true); return { ok: !!world }; },
@@ -83,7 +89,9 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       if (!world || !P()) return err('sin_personaje');
       if (!isPosInt(maxHours)) return err('horas_invalidas');
       const now = clock.now();
+      const w0 = wealth(P());
       const hours = S.tickBots(world, now, maxHours);
+      trackGold(world, P(), 'world', w0, now);
       const pending = S.botHoursPending(world, now);
       if (hours && !pending) persist();
       return { ok: true, hours, pending };
@@ -215,8 +223,16 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
 
     // Misiones
     contracts: () => query((p) => ({ ok: true, list: S.contractsFor(p) })),
-    startMission: (id) => command((p, now) => S.startMission(p, id, now)),
-    cancelMission: () => command((p) => S.cancelMission(p)),
+    startMission: (id) => command((p, now) => {
+      const r = S.startMission(p, id, now);
+      if (r.ok) track(world, p, 'mission_start', { id, min: Math.round((r.mission.end - r.mission.start) / 60_000) }, now);
+      return r;
+    }),
+    cancelMission: () => command((p, now) => {
+      const m = p.mission, r = S.cancelMission(p);
+      if (r.ok) track(world, p, 'mission_cancel', { id: m.id, left: Math.max(0, Math.round((m.end - now) / 60_000)) }, now);
+      return r;
+    }),
     claimMission: () => command((p, now) => S.claimMission(p, now, mulberry32(deriveSeed(world)), world)),
 
     // Objetivos diarios
@@ -311,13 +327,26 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         .map((e) => ({ id: e.id, name: e.name, faction: e.faction, level: e.level })),
     })),
     // Amistad por solicitud: el otro tiene que aceptar (los bots contestan en 1–6 h).
-    addFriend: (id) => command((p, now) => { const f = ent(id); return f ? So.addFriend(p, f, now, world) : err('jugador_invalido'); }),
-    acceptFriend: (id) => command((p, now) => { const f = ent(id); return f ? So.acceptFriend(p, f, now) : err('jugador_invalido'); }),
+    addFriend: (id) => command((p, now) => {
+      const f = ent(id), r = f ? So.addFriend(p, f, now, world) : err('jugador_invalido');
+      if (r.ok) track(world, p, 'friend_request', { to: f.isBot ? 'bot' : 'player' }, now);
+      return r;
+    }),
+    acceptFriend: (id) => command((p, now) => {
+      const f = ent(id), r = f ? So.acceptFriend(p, f, now) : err('jugador_invalido');
+      if (r.ok) track(world, p, 'friend_accept', { from: f.isBot ? 'bot' : 'player' }, now);
+      return r;
+    }),
     rejectFriend: (id) => command((p) => So.rejectFriend(p, id)),
     cancelRequest: (id) => command((p) => { const f = ent(id); return f ? So.cancelRequest(p, f) : err('jugador_invalido'); }),
     removeFriend: (id) => command((p) => So.removeFriend(p, id, ent(id))),
     sendGift: (id) => command((p, now) => { const f = ent(id); return f ? So.sendGift(world, p, f, now) : err('jugador_invalido'); }),
-    openGifts: () => command((p) => { if (p.muted?.length) p.giftbox = (p.giftbox ?? []).filter((g) => !p.muted.includes(g.from)); return So.openGifts(p); }),
+    openGifts: () => command((p, now) => {
+      if (p.muted?.length) p.giftbox = (p.giftbox ?? []).filter((g) => !p.muted.includes(g.from));
+      const r = So.openGifts(p);
+      if (r.ok && r.opened) track(world, p, 'gift_open', { n: r.opened }, now);
+      return r;
+    }),
 
     // v17 · Confianza. Reportar: valida y devuelve el reporte compacto (la interfaz lo encola y lo manda a la nube).
     reportPlayer: (id, reason, note, where, ref) => command((p, now) => {
@@ -346,7 +375,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
 
     // Temporada
     season: () => query((p, now) => ({ ok: true, ...Se.seasonStatus(p, now) })),
-    claimSeasonTier: (tier) => command((p, now) => Se.claimTier(p, tier, now)),
+    claimSeasonTier: (tier) => command((p, now) => { const r = Se.claimTier(p, tier, now); if (r.ok) track(world, p, 'season_claim', { tier }, now); return r; }),
     // Guaridas sugeridas: quienes te visitaron, destacadas y el resto; marca si hoy todavía rinde recompensa.
     visitSuggestions: () => query((p, now) => {
       const seen = new Set(Lr.todaysVisits(p, now).hosts);
@@ -442,7 +471,22 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       },
     },
   };
+  // v17: cada comando anota su categoría económica (fuente si el patrimonio sube, sumidero si baja). Sin entrada en
+  // ECON_SRC, la categoría es el nombre del comando. Lo que pasa al materializar el tiempo va como 'world'.
+  for (const k of Object.keys(api)) {
+    const f = api[k];
+    if (typeof f !== 'function' || NO_ECON.has(k)) continue;
+    api[k] = (...a) => { const prev = src; src = ECON_SRC[k] ?? k; try { return f(...a); } finally { src = prev; } };
+  }
+  return api;
 }
+const NO_ECON = new Set(['hasCharacter', 'saveIssue', 'save', 'catchUp', 'withOp', 'newCharacter', 'exportData']);
+const ECON_SRC = {
+  attack: 'pvp', hunt: 'pvp', buyStat: 'stat', autoSpend: 'stat', buyGear: 'gear', startMission: 'mission', cancelMission: 'mission',
+  claimMission: 'mission', claimDaily: 'daily', deposit: 'bank', withdraw: 'bank', upgradeBuilding: 'building', claimWorkshop: 'workshop',
+  buyRoom: 'room', buyItem: 'decor', recycleItem: 'recycle', visit: 'visit', sendGift: 'gift', openGifts: 'gift', welcomeBonus: 'referral',
+  claimSeasonTier: 'season',
+};
 
 export { CFG, CONTRACTS };
 export { ITEM } from "./catalog.js"; // datos del catálogo (nombre, tamaño, rareza) para dibujar; las reglas siguen acá

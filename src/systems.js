@@ -353,6 +353,7 @@ export function compactWorld(world, now) {
 export function addPlayer(world, { id, name, faction, now }) {
   const p = createEntity({ id, name, faction, now });
   p.inbox = [];
+  p.tm = 0; // v17: hitos de la primera hora por estrenar (src/telemetry.js)
   world.entities[id] = p;
   world.players = [...(world.players ?? []), id];
   // Reparte los bots entre los jugadores: cada bot "orbita" a su ancla.
