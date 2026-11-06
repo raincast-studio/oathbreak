@@ -7,6 +7,53 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="ui/img/icon-192.png">
 <link rel="apple-touch-icon" href="ui/img/icon-192.png">
+<!-- v17-qa: los 39 módulos en paralelo. Sin esto el navegador los descubría de a niveles (main → game → systems → lair → …),
+     un viaje de ida y vuelta por nivel, también en la 2ª visita (el service worker revalida el código con la red).
+     test/v17-qa.test.js controla que la lista sea exactamente el grafo estático de ui/main.js. -->
+<link rel="modulepreload" href="ui/main.js">
+<link rel="modulepreload" href="src/game.js">
+<link rel="modulepreload" href="src/core.js">
+<link rel="modulepreload" href="ui/kit.js">
+<link rel="modulepreload" href="ui/audio.js">
+<link rel="modulepreload" href="ui/errors.js">
+<link rel="modulepreload" href="ui/onboarding.js">
+<link rel="modulepreload" href="ui/report.js">
+<link rel="modulepreload" href="ui/tabs/base.js">
+<link rel="modulepreload" href="ui/tabs/misiones.js">
+<link rel="modulepreload" href="ui/tabs/arena.js">
+<link rel="modulepreload" href="ui/tabs/guarida.js">
+<link rel="modulepreload" href="ui/tabs/social.js">
+<link rel="modulepreload" href="ui/tabs/personaje.js">
+<link rel="modulepreload" href="ui/cloud.js">
+<link rel="modulepreload" href="ui/account.js">
+<link rel="modulepreload" href="ui/extras.js">
+<link rel="modulepreload" href="src/config.js">
+<link rel="modulepreload" href="src/character.js">
+<link rel="modulepreload" href="src/systems.js">
+<link rel="modulepreload" href="src/lair.js">
+<link rel="modulepreload" href="src/objectives.js">
+<link rel="modulepreload" href="src/effects.js">
+<link rel="modulepreload" href="src/catalog.js">
+<link rel="modulepreload" href="src/migrate.js">
+<link rel="modulepreload" href="src/economy.js">
+<link rel="modulepreload" href="src/telemetry.js">
+<link rel="modulepreload" href="src/social.js">
+<link rel="modulepreload" href="src/season.js">
+<link rel="modulepreload" href="src/moderation.js">
+<link rel="modulepreload" href="src/bots.js">
+<link rel="modulepreload" href="ui/legal.js">
+<link rel="modulepreload" href="src/reports.js">
+<link rel="modulepreload" href="ui/safety.js">
+<link rel="modulepreload" href="ui/fight.js">
+<link rel="modulepreload" href="ui/room.js">
+<link rel="modulepreload" href="src/combat.js">
+<link rel="modulepreload" href="src/events.js">
+<link rel="modulepreload" href="ui/art.js">
+<!-- v17-qa: la nube (ui/cloud.js) se conecta antes de crear la partida: conexión y librería en paralelo con el juego
+     (antes empezaban recién después de bajar y ejecutar todo). Mismo test: URL y versión iguales a las de ui/cloud.js. -->
+<link rel="preconnect" href="https://ymxjkmmtogjfnoclwdlm.supabase.co" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/+esm">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -873,11 +920,19 @@ a.btn { display: inline-flex; align-items: center; justify-content: center; text
   .me-btn.lvl-up + .me-info .me-xp, .arena.shake, .fighter .sprite, .chip.gold .chip-ico { animation: none !important; }
 }
 /* /v17-audio */
+/* v17-qa: pantalla de carga (index.html → boot() en ui/main.js la quita) */
+.boot { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: radial-gradient(100% 60% at 50% 0%, color-mix(in srgb, var(--violet) 30%, var(--bg)), var(--bg) 70%); }
+.boot-logo { font-size: 44px; color: var(--gold); text-shadow: 0 4px 0 var(--gold-sh); }
+.boot-txt { color: var(--muted); font-size: 15px; animation: boot-pulse 1.2s ease-in-out infinite alternate; }
+@keyframes boot-pulse { from { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .boot-txt { animation: none; } }
 </style>
 </head>
 <body>
 <!-- v15.1: el manifiesto, el título y los <meta> estaban dentro de <body> (Chrome no ve el manifiesto ahí: la app no se podía instalar). -->
 <noscript><p style="padding:24px">OATHBREAK necesita JavaScript activado.</p></noscript>
+<!-- v17-qa: pantalla de carga sin JavaScript: con señal mala se veía la pantalla vacía hasta 3–8 s. boot() la quita. -->
+<div id="boot" class="boot" role="status"><span class="display boot-logo">OATHBREAK</span><span class="boot-txt">Cargando…</span></div>
 <script type="module" src="ui/main.js"></script>
 
 </body></html>

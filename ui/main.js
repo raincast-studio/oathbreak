@@ -242,6 +242,7 @@ function go(tab, { focus = false, intent = null } = {}) {
 }
 
 function drawTab() {
+  if (!view(S.tab)) return; // v17-qa: durante el arranque (S.tab = null) no hay pestaña que dibujar
   const [, mod] = view(S.tab);
   $('#view').replaceChildren(mod.render({ S, game, act, refresh, refreshTop, celebrate, go }));
   S.intent = null;
@@ -366,10 +367,9 @@ function catchUp() {
 }
 async function start(tab) {
   mount();
-  S.tab = tab;
+  S.tab = null; // v17-qa: go() ve un cambio de pestaña y hace un solo refresh() completo (antes refresh() + go() dibujaban la pestaña dos veces)
   await catchUp();
-  refresh();
-  go(S.tab);
+  go(tab);
   const note = cloud.takeNotice();
   if (note) toast(note, 'prize');
   claimRef(game, refresh);
@@ -379,6 +379,7 @@ async function start(tab) {
 }
 // Sin personaje: onboarding (facción → nombre) y la primera sesión arranca en Inicio con "Primeros pasos".
 function boot() {
+  document.getElementById('boot')?.remove(); // v17-qa: pantalla de carga de index.html
   if (game.saveIssue()) return saveIssueScreen(game.saveIssue());
   if (!game.hasCharacter()) return showOnboarding(game, () => start('base'));
   const k = location.hash.slice(1);
