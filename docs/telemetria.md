@@ -36,8 +36,8 @@ intercambiable). Gates de la beta: **D1 ≥ 35 %**, **D7 ≥ 12 %**, **sesiones 
 | `v` | versión de la app (`APP_VERSION` en `ui/telemetry-sink.js`, igual a `VERSION` de `sw.js`; un test lo controla) |
 | `tid` | id seudónimo de instalación (aleatorio, 16 hex, `localStorage['oathbreak.tm.id']`) |
 | `t` | tipo de evento (`^[a-z][a-z0-9_]{1,39}$`) |
-| `ts` | hora del cliente en ms (el servidor la acota a [ahora − 7 d, ahora + 1 h]) |
-| `sid` | sesión: cambia al abrir la app o al volver tras ≥ 30 min oculta (mismo corte que `session_start`) |
+| `ts` | hora del cliente en ms (el servidor descarta lo de hace más de 30 días y lleva a "ahora" lo que venga más de 1 h en el futuro) |
+| `sid` | sesión: cambia tras ≥ 30 min sin actividad; se conserva entre recargas (mismo corte que `session_start`) |
 | `q` | número de evento dentro de la sesión (con `sid`, clave de idempotencia: un reenvío no duplica) |
 | `scr` | pantalla actual: `onb`, `base`, `misiones`, `arena`, `guarida`, `social`, `personaje` (+ `:sheet`/`:caza`) |
 | `p` | propiedades (≤ 1 KB) |
