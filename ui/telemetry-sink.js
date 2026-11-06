@@ -20,7 +20,8 @@ const KEEP = /^(signup|first|app_open|onb_\w+)$/;
 
 /* ---------- Privacidad ---------- */
 const PII_KEY = /^(name|nombre|email|e?mail|nick|nickname|pid)$/i;
-const EMAIL = /[\w.+-]+@[\w-]+(\.[\w-]+)+/g;
+// El TLD no puede seguir con ":" o "/": así "load@main.js:3:4" (pila de Firefox) no cuenta como email.
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,24}(?![\w:/-])/gi;
 export const scrubText = (s, max = 200) => String(s ?? '').replace(EMAIL, '[email]').slice(0, max);
 // Propiedades planas y chicas: sin claves personales, sin objetos anidados, textos acotados, sin emails.
 export function scrub(p) {
