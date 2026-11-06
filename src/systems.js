@@ -67,6 +67,8 @@ export function withdraw(e, amount) {
 // Rango simétrico: se calcula con el mayor de los dos niveles.
 export const levelRange = (lvl) => Math.max(CFG.pvp.rangeAbs, Math.floor(lvl * CFG.pvp.rangePct));
 export const inRange = (a, b) => Math.abs(a.level - b.level) <= levelRange(Math.max(a.level, b.level));
+// Techo de nivel de un bot: el de su ancla + su desvío habitual + 2, nunca fuera de su rango (sin ancla, sin techo).
+const botCeil = (world, b) => { const p = world.entities[b.anchor]; return p ? p.level + Math.min(levelRange(p.level), (b.offset ?? 0) + 2) : Infinity; };
 
 // Cupos de defensas recibidas por día, separados: los ataques de bots no consumen el cupo de ataques de jugadores reales.
 // Ataques que puede recibir por día: con el escudo de novato retirándose (Nv 5–7) el tope es más bajo.
@@ -274,8 +276,11 @@ export function pvp(world, att, def, now, opts = {}) {
 
   const xpWin = Math.round(pvpXp(lose.level) * (win === att ? risk : 1) * (ev?.xpWinMult ?? 1));
   const xpLose = Math.max(1, Math.round(xpWin * CFG.pvp.xpLosePct));
-  const lvlWin = addXp(win, xpWin);
-  const lvlLose = addXp(lose, xpLose);
+  // v17 (B2): un bot no pasa del techo de su ancla (nivel del jugador + rango) por la XP de peleas: antes, con el jugador
+  // ausente, los duelos lo subían igual y al mes nadie quedaba en el rango de un Nv 1.
+  const gain = (e, n) => (e.isBot && e.level >= botCeil(world, e) ? 0 : addXp(e, n));
+  const lvlWin = gain(win, xpWin);
+  const lvlLose = gain(lose, xpLose);
   win.rep += CFG.pvp.repWin;
   if (!opts.duel) addWeeklyRep(win, now, CFG.pvp.repWin); // los duelos entre bots no deciden la guerra de facciones
   win.record.w++; lose.record.l++;
@@ -544,7 +549,7 @@ function botHour(world, b, now, rng, bots, weights) {
   // Ráfaga: cada acción visible es un ataque a su jugador o una visita (en la proporción de las tasas de config).
   for (const off of on.offs) {
     if (p && rng() < pa) pvp(world, b, p, now, { ignoreEnergy: true, ts: at(off, p) });
-    else { const h = pickVisitTarget(world, b, rng, weights); lairVisit(world, b, h, now, { applaud: rng() < 0.7, ts: at(off, h) }); }
+    else { const h = pickVisitTarget(world, b, rng, weights); lairVisit(world, b, h, now, { applaud: rng() < 0.7, ts: at(off, h), noXp: b.level >= botCeil(world, b) }); }
   }
   // Duelos entre bots (invisibles: solo reputación para el ranking), en la misma cantidad diaria que antes.
   const nd = CFG.bots.duelChancePerHour * per * BL.activity(b, now);
@@ -573,10 +578,11 @@ export function tickBots(world, now, maxHours = Infinity) {
   if (world.botHour >= last) return 0;
   const from = Math.max(world.botHour + 1, last - CFG.bots.maxCatchUpHours + 1);
   const to = Math.min(last, from + Math.max(1, maxHours) - 1);
-  const bots = Object.values(world.entities).filter((e) => e.isBot);
+  const list = () => Object.values(world.entities).filter((e) => e.isBot);
+  let bots = list();
   for (let h = from; h <= to; h++) {
     settleShowcase(world, h * HOUR);
-    if (world.botDay !== dayKey(h * HOUR)) rebalanceBots(world, h * HOUR); // v17: una vez por día, antes de jugar la hora
+    if (world.botDay !== dayKey(h * HOUR) && rebalanceBots(world, h * HOUR)?.relays) bots = list(); // v17: una vez por día, antes de jugar la hora
     const rng = mulberry32((world.seed ^ Math.imul(h, 0x85ebca6b)) >>> 0);
     const weights = visitWeights(world);
     for (const b of bots) botHour(world, b, h * HOUR, rng, bots, weights);
@@ -658,7 +664,91 @@ export function rebalanceBots(world, now) {
     }
   }
   if (!R.enabled) for (const b of order) { if (back >= R.perDay) break; if (b.ret) comeBack(b, null); }
-  return { retired, back, share };
+  // 4) v17 (B2): piso de rivales en el rango de cada jugador activo (relevos de bots que no le sirven a nadie).
+  let relays = 0;
+  for (const h of humans) relays += ensureTargets(world, h, now);
+  return { retired, back, share, relays };
+}
+
+/* ---------- v17 (B2): piso de rivales en el rango de cada jugador ---------- */
+// Rivales que el jugador h puede tener a la vista: de la otra facción, en su rango, que juegan (bots no retirados del
+// todo; jugadores reales sin escudo de novato).
+export function rivalsInRange(world, h, now) {
+  let n = 0;
+  for (const e of Object.values(world.entities))
+    if (e.faction !== h.faction && inRange(h, e) && (e.isBot ? !BL.gone(e, now) : e.level >= CFG.pvp.newbieLevel)) n++;
+  return n;
+}
+// Lazos con algún jugador real: un bot así no se puede ir sin que se note.
+function tied(world, b, now) {
+  for (const id of world.players ?? []) {
+    const p = world.entities[id];
+    if (!p) continue;
+    if ((p.friends ?? []).includes(b.id) || p.lair.guestbook.some((g) => g.id === b.id) || (p.revenge ?? []).some((r) => r.id === b.id && now - r.ts < CFG.pvp.revengeH * HOUR)) return true;
+    if ((p.friendReq?.in ?? []).some((r) => r.id === b.id) || (p.friendReq?.out ?? []).some((r) => r.id === b.id) || (p.giftbox ?? []).some((g) => g.from === b.id)) return true;
+  }
+  return false;
+}
+// Faltan rivales en el rango de h: devuelve cuántos y los bots que pueden dejar su lugar (fuera del rango de todo
+// jugador activo y sin lazos; primero los retirados, después los más lejanos). Orden fijo por semilla.
+export function targetDeficit(world, h, now) {
+  const F = CFG.bots.floor;
+  const miss = F.targets - rivalsInRange(world, h, now);
+  if (miss <= 0) return { miss: 0, donors: [] };
+  const act = (world.players ?? []).map((id) => world.entities[id])
+    .filter((e) => e && (e === h || now - (e.lastSeen ?? e.createdAt ?? 0) < CFG.bots.retire.activeDays * DAY));
+  const foe = h.faction === 'hero' ? 'villain' : 'hero';
+  const donors = Object.values(world.entities)
+    .filter((b) => b.isBot && b.faction === foe && act.every((x) => !inRange(x, b)) && !tied(world, b, now))
+    .sort((a, b) => BL.gone(b, now) - BL.gone(a, now) || Math.abs(b.level - h.level) - Math.abs(a.level - h.level) || (a.id < b.id ? -1 : 1));
+  return { miss, donors };
+}
+// Llega un jugador nuevo de tu nivel en lugar de `old` (que deja de jugar): nick y perfil horario propios (id nuevo),
+// alta de hace 2–17 semanas, récord y reputación acordes a su nivel, guarida decorada con algunas firmas y atributos
+// calibrados contra h como cualquier bot. Mismo lugar en el mundo: el guardado no crece.
+export function relayBot(world, old, h, now) {
+  const F = CFG.bots.floor;
+  const i = world.botSeq = Math.max(world.botSeq ?? 0, CFG.bots.count);
+  world.botSeq++;
+  const r = mulberry32(BL.hash32(world.seed, 'relay', i));
+  const b = createEntity({ id: `b${i}`, name: BL.botName(world, i, old.faction), faction: old.faction, isBot: true, now });
+  b.createdAt = now - Math.round(r.range(F.ageDays[0], F.ageDays[1]) * DAY);
+  b.arch = r.pick(Object.keys(ARCHETYPES));
+  b.offset = r.int(-2, 1); // de tu nivel o un poco menos: la presa del día prefiere a los de tu nivel o menor
+  b.skill = r.range(-CFG.matchmaking.skillSpread, CFG.matchmaking.skillSpread);
+  b.wealth = r.range(CFG.bots.wealth[0], CFG.bots.wealth[1]);
+  b.scale = 1;
+  const lvl = Math.max(1, Math.min(h.level + levelRange(h.level), h.level + b.offset));
+  addXp(b, cumXp(lvl));
+  b.gold += Math.round(cumXp(lvl) * (CFG.missions.goldBase / CFG.missions.xpBase) * CFG.bots.incomeEff);
+  spendByWeights(b, ARCHETYPES[b.arch], r.range(0.15, 0.4));
+  const bankPart = Math.floor(b.gold * r.range(0, 0.5));
+  if (bankPart > 0) deposit(b, bankPart);
+  const fights = Math.round(lvl * r.range(F.fightsPerLvl[0], F.fightsPerLvl[1])), w = Math.round(fights * r.range(F.winPct[0], F.winPct[1]));
+  b.record = { w, l: fights - w }; b.rep = w;
+  furnishBot(b, mulberry32(BL.hash32(world.seed, b.id, 0xf0b)));
+  // Firmas de otros que lo visitaron en los últimos días (las guaridas de bots guardan pocas).
+  const others = Object.values(world.entities).filter((e) => e.isBot && e.id !== old.id && !BL.gone(e, now));
+  for (let k = r.int(1, CFG.lair.visit.guestbookMaxBot); k > 0 && others.length; k--) {
+    const v = r.pick(others);
+    b.lair.guestbook.push({ id: v.id, name: v.name, faction: v.faction, lvl: v.level, ts: now - Math.round(r.range(0.2, 6) * DAY), applause: r() < 0.7, tip: 0 });
+  }
+  b.lair.guestbook.sort((x, y) => y.ts - x.ts);
+  b.anchor = h.id;
+  calibrateBot(b, h, 60);
+  delete world.entities[old.id];
+  world.entities[b.id] = b;
+  for (const id of world.players ?? []) { const p = world.entities[id]; if (p?.lastAttackOn) delete p.lastAttackOn[old.id]; }
+  return b;
+}
+// Completa el piso de rivales de h con relevos (hasta max). Devuelve cuántos llegaron.
+export function ensureTargets(world, h, now, max = Infinity) {
+  if (!h || h.isBot) return 0;
+  const { miss, donors } = targetDeficit(world, h, now);
+  let n = 0;
+  for (const old of donors) { if (n >= Math.min(miss, max)) break; relayBot(world, old, h, now); n++; }
+  if (n) h.fresh = (h.fresh ?? 0) + n; // para el resumen de "Mientras no estabas"
+  return n;
 }
 
 // Horas de bots que faltan simular hasta `now` (con el tope de maxCatchUpHours).

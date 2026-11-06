@@ -308,7 +308,7 @@ function bumpStreak(e, now) {
 
 const applauseOf = (e, week) => (e.lair.applause.week === week ? e.lair.applause.voters.length : 0);
 
-export function visit(world, v, h, now, { applaud = true, ts = now } = {}) { // ts: hora que se muestra (v17: los bots la reparten en la franja)
+export function visit(world, v, h, now, { applaud = true, ts = now, noXp = false } = {}) { // ts: hora que se muestra (v17: los bots la reparten en la franja)
   if (v.id === h.id) return { ok: false, error: 'tu_propia_guarida' };
   resetDaily(v, now);
   const vs = v.lair.visits, cfg = L().visit;
@@ -320,7 +320,7 @@ export function visit(world, v, h, now, { applaud = true, ts = now } = {}) { // 
   const n = vs.hosts.length;
   if (n <= cfg.rewardedCap) {
     out.gold = Math.round(missionReward(cfg.goldMissionMin, v.level).gold * (weekendEvent(now)?.visitGoldMult ?? 1));
-    out.xp = cfg.xp;
+    out.xp = noXp ? 0 : cfg.xp; // v17 (B2): un bot en su techo de nivel no suma XP
     syncWorkshop(v, now);
     v.gold += out.gold;
     out.levels = addXp(v, out.xp);

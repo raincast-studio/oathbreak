@@ -9,7 +9,7 @@ import * as O from './objectives.js';
 import { energyMax, energyRegenMin, grantItem } from './effects.js';
 import { ITEM } from './catalog.js';
 import { migrate } from './migrate.js';
-import { hasKey, isInt, isPosInt } from './economy.js';
+import { hasKey, isInt, isPosInt, missionReward } from './economy.js';
 import { track, touchSession, setTelemetrySink, wealth, trackGold } from './telemetry.js';
 import * as So from './social.js';
 import * as Se from './season.js';
@@ -51,11 +51,31 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
     const w0 = wealth(P());
     const ticked = S.tickBots(world, now) > 0;
     const prize = Lr.settleShowcase(world, now);
+    const relays = S.ensureTargets(world, P(), now) > 0; // v17 (B2): nunca menos de bots.floor.targets rivales en tu rango
     trackGold(world, P(), 'world', w0, now); // v17: lo que pasó mientras no estabas (asaltos de bots, premios)
     C.sync(P(), now);
+    const w1 = wealth(P()), back = comeback(P(), now);
+    trackGold(world, P(), 'comeback', w1, now);
     const before = world.events?.length ?? 0;
     touchSession(world, P(), now);
-    return ticked || !!prize || (world.events?.length ?? 0) !== before;
+    return ticked || !!prize || relays || back || (world.events?.length ?? 0) !== before;
+  }
+  // v17 (B2): bono de regreso tras ≥ comeback.days días sin entrar: energía llena, un cofre y un resumen de lo que pasó
+  // (rivales nuevos de tu nivel, guerra de facciones, temporada nueva). La interfaz lo muestra en "Mientras no estabas".
+  function comeback(p, now) {
+    const K = CFG.bots.comeback, fresh = p.fresh ?? 0;
+    delete p.fresh;
+    const last = p.lastSeen;
+    if (last == null || now - last < K.days * DAY) return false;
+    const gold = missionReward(K.chestMissionMin, p.level).gold;
+    p.energy = Math.max(p.energy, energyMax(p)); p.energyTs = now;
+    p.gold += gold; p.lair.renown += K.renown;
+    const war = world.lastPrize && world.lastPrize.week >= weekKey(last) ? world.lastPrize.faction : null;
+    p.comeback = { ts: now, days: Math.floor((now - last) / DAY), gold, renown: K.renown, fresh,
+      ...(war && { war: { winner: war.winner, hero: war.score.hero, villain: war.score.villain } }),
+      ...(Se.seasonKey(last) !== Se.seasonKey(now) && { season: true }) };
+    track(world, p, 'comeback', { days: p.comeback.days, fresh }, now);
+    return true;
   }
   // Consulta: materializa el paso del tiempo y lee. Las funciones de lectura son puras (test: robustness
   // "las consultas no modifican el mundo") y el resultado es una copia: nunca expone referencias vivas.
@@ -91,10 +111,15 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       const now = clock.now();
       const w0 = wealth(P());
       const hours = S.tickBots(world, now, maxHours);
+      let pending = S.botHoursPending(world, now), relays = 0;
+      // v17 (B2): al terminar las horas, los relevos que falten para el piso de rivales, de a pocos por tramo.
+      if (!pending && (relays = S.ensureTargets(world, P(), now, CFG.bots.floor.relays))) {
+        const d = S.targetDeficit(world, P(), now);
+        pending = Math.min(d.miss, d.donors.length);
+      }
       trackGold(world, P(), 'world', w0, now);
-      const pending = S.botHoursPending(world, now);
-      if (hours && !pending) persist();
-      return { ok: true, hours, pending };
+      if ((hours || relays) && !pending) persist();
+      return { ok: true, hours, pending, ...(relays && { relays }) };
     },
 
     // Idempotencia: si un comando se reintenta con la misma clave (p. ej. por un corte de red), devuelve el resultado
@@ -157,6 +182,7 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
         friendRequests: So.pendingIn(p, now).length,
         faction: S.factionScore(world, now),
         lastPrize: world.lastPrize ?? null,
+        comeback: p.comeback ?? null, // v17 (B2): bono de regreso por mostrar (ackComeback lo da por visto)
         event: (({ id, name, desc } = {}) => (id ? { id, name, desc } : null))(S.weekendEvent(now) ?? undefined),
       }));
     },
@@ -185,6 +211,8 @@ export function createGame({ storage = memoryStorage(), clock = createClock(), s
       p.ui = { ...(p.ui ?? {}), [key]: JSON.parse(json) };
       return { ok: true };
     }),
+
+    ackComeback: () => command((p) => { const had = !!p.comeback; delete p.comeback; return { ok: true, had }; }),
 
     // Personaje
     buyStat: (k) => command((p, now) => {

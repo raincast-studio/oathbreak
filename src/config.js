@@ -175,6 +175,12 @@ export const CFG = {
     // v17: ataques de jugadores que un bot puede recibir por día (null = pvp.maxReceivedPerDay, como hoy). Con muchos
     // jugadores reales, el cupo de 5 de cada objetivo no alcanza para la energía de todos (ver docs/E6, Bots).
     receiveFromPlayers: null,
+    // v17 (B2): piso de rivales en tu rango. Si faltan, un bot que no está en el rango de ningún jugador activo y no tiene
+    // lazos con nadie (amistad, firmas, venganza, solicitudes) "se va" y en su lugar llega uno nuevo de tu nivel, con
+    // historial, guarida y horario propios (mismo cupo de entidades: el guardado no crece). relays: cuántos por tramo.
+    floor: { targets: 8, relays: 2, ageDays: [15, 120], fightsPerLvl: [6, 14], winPct: [0.42, 0.6] },
+    // Bono de regreso tras ≥ days días sin entrar: energía llena y un cofre (oro de misión de N min + renombre).
+    comeback: { days: 3, chestMissionMin: 120, renown: 15 },
     // v17: comportamiento humano. Cada bot tiene un perfil estable derivado de la semilla (no ocupa lugar en el guardado).
     human: {
       tz: [[-3, 0.55], [-4, 0.12], [-5, 0.2], [-6, 0.13]], // husos LATAM: AR/BR/UY/PY · BO/VE/CL · CO/PE/EC · MX/Centroamérica

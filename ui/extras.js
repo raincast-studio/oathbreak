@@ -75,7 +75,8 @@ export function awaySummary(ctx, force = 0) {
   const { S, game, go } = ctx;
   const last = force ? S.now - force : Number(LS.get(SEEN)) || 0; // force: ms simulados (herramientas de prueba)
   markSeen(S.now);
-  if (!last || S.now - last < 30 * 60_000) return;
+  const cb = S.comeback; // v17 (B2): bono de regreso (≥ 3 días afuera): se muestra una vez aunque esta app no tenga "última vez"
+  if (!cb && (!last || S.now - last < 30 * 60_000)) return;
   const ib = game.inbox();
   const def = (ib.ok ? ib.list : []).filter((x) => x.role === 'defender' && x.report.ts > last);
   const won = def.filter((x) => x.report.winner === 'defender');
@@ -84,6 +85,14 @@ export function awaySummary(ctx, force = 0) {
   const bounty = won.reduce((a, x) => a + (x.report.loot.bounty ?? 0), 0);
   const p = S.player, fr = game.friends(), lr = game.lair();
   const lines = [];
+  if (cb) {
+    const foe = p.faction === 'hero' ? 'villanos' : 'héroes', FN = { hero: 'Héroes', villain: 'Villanos' };
+    lines.push(['star', '¡Volviste! Bono de regreso', `Energía llena · cofre con ${num(cb.gold)} oro y ${cb.renown} de renombre`]);
+    if (cb.fresh) lines.push(['caza', `Llegaron ${cb.fresh} ${foe} nuevos de tu nivel`, 'Ya están en la Arena para cazar']);
+    if (cb.war) lines.push(['crown', cb.war.winner ? `La última guerra la ganaron los ${FN[cb.war.winner]}` : 'La última guerra terminó empatada', `Héroes ${num(cb.war.hero)} · Villanos ${num(cb.war.villain)} victorias`]);
+    if (cb.season) lines.push(['star', 'Empezó una temporada nueva', 'El pase arrancó de cero: hay premios para cobrar']);
+    game.ackComeback(); S.comeback = null;
+  }
   if (def.length) lines.push([def.length && lost ? 'arena' : 'shield', `Te atacaron ${def.length} ${def.length === 1 ? 'vez' : 'veces'}: ganaste ${won.length} y perdiste ${lost}`,
     [bounty ? `+${num(bounty)} oro de recompensa` : null, goldLost ? `−${num(goldLost)} oro robado` : null].filter(Boolean).join(' · ')]);
   if (p.mission?.done) lines.push(['misiones', 'Tu misión terminó', `${num(p.mission.reward.gold)} oro para cobrar`]);
@@ -92,9 +101,9 @@ export function awaySummary(ctx, force = 0) {
   if (fr.ok && fr.giftbox.length) lines.push(['star', `${fr.giftbox.length} ${fr.giftbox.length === 1 ? 'regalo' : 'regalos'} sin abrir`, null]);
   if (fr.ok && fr.requests.length) lines.push(['social', `${fr.requests.length} ${fr.requests.length === 1 ? 'solicitud' : 'solicitudes'} de amistad`, null]);
   // v15: solo si pasó algo que importa (ataques, misión cumplida o regalos); energía llena o solicitudes solas no alcanzan.
-  if (!force && !(def.length || p.mission?.done || (fr.ok && fr.giftbox.length))) return;
+  if (!force && !cb && !(def.length || p.mission?.done || (fr.ok && fr.giftbox.length))) return;
   if (!lines.length) { if (force) toast('No pasó nada en ese lapso.'); return; }
-  const away = S.now - last, hrs = Math.floor(away / 3_600_000);
+  const away = cb ? cb.days * 86_400_000 : S.now - last, hrs = Math.floor(away / 3_600_000);
   const goTo = (tab, intent) => () => { closeSheet(); go(tab, { intent }); };
   openSheet({ title: 'Mientras no estabas', body: h('div.stack',
     h('p.muted', hrs >= 24 ? `Pasaron ${Math.floor(hrs / 24)} ${hrs >= 48 ? 'días' : 'día'}.` : hrs ? `Pasaron ${hrs} h.` : 'Pasó un rato.'),

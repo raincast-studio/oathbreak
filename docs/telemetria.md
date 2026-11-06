@@ -89,9 +89,11 @@ evento el día `cohorte + n`. Consultas en `supabase/queries/kpis.sql`.
 | `spend` | F | `what` (`stat`/`gear`/`building`), `gold`, extras | En qué se gasta (detalle de compras). |
 | `daily_claim` / `daily_bonus` | F | `id` | ¿Se usan los objetivos del día? |
 | `season_claim` | F | `tier` | Avance del pase de temporada. |
+| `comeback` | F | `days` (días afuera), `fresh` (rivales nuevos de tu nivel que llegaron) | ¿Vuelven los que se fueron? ¿Cuántos relevos hacen falta? |
 
 Categorías de `src`: `mission`, `pvp`, `visit`, `workshop`, `daily`, `season`, `referral`, `gift`, `recycle`, `stat`,
-`gear`, `building`, `room`, `decor`, `bank` (comisión), `world` (asaltos de bots y premios mientras no estabas; neto).
+`gear`, `building`, `room`, `decor`, `bank` (comisión), `world` (asaltos de bots y premios mientras no estabas; neto),
+`comeback` (cofre del bono de regreso).
 Comando sin categoría propia → su nombre. El buffer del guardado no guarda `gold`.
 
 ### Social

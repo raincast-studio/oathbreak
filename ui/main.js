@@ -60,7 +60,7 @@ export function act(btn, run, okText, { refresh: doRefresh = true } = {}) {
 function load() {
   const st = game.state();
   if (!st.ok) return false;
-  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.event = st.event; S.now = st.now; S.at = performance.now();
+  S.player = st.player; S.unread = st.unread; S.revenge = st.revenge; S.requests = st.friendRequests; S.event = st.event; S.comeback = st.comeback; S.now = st.now; S.at = performance.now();
   return true;
 }
 function refresh({ full = true } = {}) {
